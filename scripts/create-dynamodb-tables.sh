@@ -49,7 +49,10 @@ create_table cloudcart-users     email
 # actions the app uses. Created idempotently so the pod-identity association
 # (eksctl create podidentityassociation) has a policy ARN to attach.
 # ---------------------------------------------------------------------------
-ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"
+if ! ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text --region "$REGION" 2>/dev/null)"; then
+  echo "ERROR: unable to determine AWS account id — check your credentials (aws sts get-caller-identity)."
+  exit 1
+fi
 POLICY_NAME="CloudCartDynamoDBPolicy"
 POLICY_ARN="arn:aws:iam::${ACCOUNT_ID}:policy/${POLICY_NAME}"
 
@@ -92,10 +95,27 @@ EOF
 if aws iam get-policy --policy-arn "$POLICY_ARN" >/dev/null 2>&1; then
   echo "IAM policy exists: $POLICY_NAME"
 else
-  aws iam create-policy \
-    --policy-name "$POLICY_NAME" \
-    --policy-document file://"$POLICY_FILE" >/dev/null
-  echo "Created IAM policy: $POLICY_NAME"
+  echo "Creating IAM policy: $POLICY_NAME ..."
+  if CREATE_ERR="$(aws iam create-policy \
+      --policy-name "$POLICY_NAME" \
+      --policy-document file://"$POLICY_FILE" 2>&1 >/dev/null)"; then
+    echo "Created IAM policy: $POLICY_NAME"
+  else
+    echo ""
+    echo "ERROR: could not create IAM policy $POLICY_NAME."
+    echo "Reason: $CREATE_ERR"
+    echo ""
+    echo "This usually means the current identity lacks iam:CreatePolicy."
+    echo "Fix options:"
+    echo "  1) Add iam:CreatePolicy (and iam:GetPolicy) to this identity's role, then re-run this script. Example for the bastion role:"
+    echo "       aws iam put-role-policy --role-name ec2-server-role --policy-name AllowCreatePolicy \\"
+    echo "         --policy-document '{\"Version\":\"2012-10-17\",\"Statement\":[{\"Effect\":\"Allow\",\"Action\":[\"iam:CreatePolicy\",\"iam:GetPolicy\"],\"Resource\":\"*\"}]}'"
+    echo "  2) Or create the policy once from an admin identity:"
+    echo "       aws iam create-policy --policy-name $POLICY_NAME --policy-document file://<saved-policy.json>"
+    echo ""
+    echo "The tables above were created successfully. Re-run this script (or create the policy manually) before 'eksctl create podidentityassociation'."
+    exit 1
+  fi
 fi
 
 echo "Policy ARN: $POLICY_ARN"

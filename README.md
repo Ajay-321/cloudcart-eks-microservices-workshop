@@ -583,46 +583,101 @@ Custom inline policy:
   "Version": "2012-10-17",
   "Statement": [
     {
-      "Sid": "EKSFullInfrastructureAccess",
+      "Sid": "EKSAccess",
       "Effect": "Allow",
-      "Action": ["eks:*"],
+      "Action": "eks:*",
       "Resource": "*"
     },
     {
-      "Sid": "EKSRequiredSupportingServices",
+      "Sid": "EC2Access",
+      "Effect": "Allow",
+      "Action": "ec2:*",
+      "Resource": "*"
+    },
+    {
+      "Sid": "CloudFormationAccess",
+      "Effect": "Allow",
+      "Action": "cloudformation:*",
+      "Resource": "*"
+    },
+    {
+      "Sid": "IAMAccess",
       "Effect": "Allow",
       "Action": [
+        "iam:CreateRole",
+        "iam:DeleteRole",
+        "iam:GetRole",
         "iam:PassRole",
+        "iam:AttachRolePolicy",
+        "iam:DetachRolePolicy",
+        "iam:CreatePolicy",
+        "iam:DeletePolicy",
+        "iam:CreatePolicyVersion",
+        "iam:DeletePolicyVersion",
+        "iam:GetPolicy",
+        "iam:GetPolicyVersion",
+        "iam:ListPolicyVersions",
+        "iam:ListRolePolicies",
+        "iam:ListAttachedRolePolicies",
         "iam:CreateServiceLinkedRole",
-        "kms:DescribeKey",
-        "kms:CreateGrant",
-        "logs:CreateLogGroup",
-        "logs:CreateLogStream",
-        "logs:PutLogEvents",
-        "logs:PutRetentionPolicy",
-        "ec2:DescribeSubnets",
-        "ec2:DescribeSecurityGroups",
-        "ec2:DescribeVpcs"
+        "iam:TagRole",
+        "iam:TagPolicy",
+        "iam:GetOpenIDConnectProvider",
+        "iam:CreateOpenIDConnectProvider",
+        "iam:DeleteOpenIDConnectProvider",
+        "iam:TagOpenIDConnectProvider"
       ],
       "Resource": "*"
     },
     {
-      "Sid": "EKSNetworkAndIAMHelpers",
+      "Sid": "AutoScalingAccess",
+      "Effect": "Allow",
+      "Action": "autoscaling:*",
+      "Resource": "*"
+    },
+    {
+      "Sid": "LogsAccess",
       "Effect": "Allow",
       "Action": [
-        "iam:CreateRole",
-        "iam:AttachRolePolicy",
-        "iam:GetRole",
-        "ec2:CreateSecurityGroup",
-        "ec2:Describe*",
-        "ec2:AuthorizeSecurityGroupIngress",
-        "ec2:AuthorizeSecurityGroupEgress"
+        "logs:CreateLogGroup",
+        "logs:CreateLogStream",
+        "logs:DescribeLogGroups",
+        "logs:DescribeLogStreams",
+        "logs:PutLogEvents",
+        "logs:PutRetentionPolicy"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "KMSAccess",
+      "Effect": "Allow",
+      "Action": [
+        "kms:DescribeKey",
+        "kms:CreateGrant",
+        "kms:ListGrants",
+        "kms:RevokeGrant"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "SSMAccess",
+      "Effect": "Allow",
+      "Action": [
+        "ssm:DescribeInstanceInformation",
+        "ssm:GetParameter",
+        "ssm:GetParameters",
+        "ssm:GetParametersByPath"
       ],
       "Resource": "*"
     }
   ]
 }
 ```
+
+> The `iam:CreatePolicy`/`iam:GetPolicy` permissions let the bastion create the
+> `CloudCartDynamoDBPolicy` (done automatically by `scripts/create-dynamodb-tables.sh`).
+> Without them, the DynamoDB Pod Identity association in Step 5 fails with
+> "Policy ... does not exist". For a real production setup, scope these down to least privilege.
 
 Also attach these AWS managed policies:
 
