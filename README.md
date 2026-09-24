@@ -199,8 +199,10 @@ Create the cluster from the CLI — run this from your laptop or from the **bast
 eksctl create cluster \
   --name cloudcart --region us-east-1 --version 1.31 \
   --managed --node-type t3.medium \
-  --nodes 2 --nodes-min 2 --nodes-max 4 --with-oidc
+  --nodes 1 --nodes-min 1 --nodes-max 2 --with-oidc
 ```
+This uses a small 1-node group (min 1, max 2) to keep demo cost low. You can scale it up if pods don't fit — see the note below.
+
 Takes ~15–20 min and configures `kubectl` for you.
 
 > Tip: use the **AWS Console only to *view*** the cluster (nodes, node group).
@@ -219,6 +221,49 @@ aws eks update-kubeconfig --region <REGION> --name <CLUSTER_NAME>
 ```
 
 Then `kubectl get nodes` to confirm the nodes are Ready. Next, pick a demo below.
+
+### If pods stay Pending (not enough nodes)
+
+A single `t3.medium` has limited CPU/memory and a capped number of pods it can run. When you deploy all services (each with its own replicas), some pods may sit in `Pending` with a "too many pods" or "Insufficient cpu/memory" event.
+
+Check what's happening:
+
+```bash
+kubectl get pods -n cloudcart
+kubectl describe pod <POD_NAME> -n cloudcart   # look at Events for the reason
+```
+
+Fix it by scaling the managed node group with the CLI — no need to recreate the cluster. First find the node group name, then scale:
+
+```bash
+# Find the node group name
+eksctl get nodegroup --cluster cloudcart --region us-east-1
+
+# Scale it up (e.g. to 2 nodes; must be within min/max)
+eksctl scale nodegroup \
+  --cluster cloudcart --region us-east-1 \
+  --name <NODEGROUP_NAME> \
+  --nodes 2 --nodes-min 1 --nodes-max 2
+```
+
+Generic form:
+
+```bash
+eksctl scale nodegroup --cluster <CLUSTER_NAME> --region <REGION> \
+  --name <NODEGROUP_NAME> --nodes <DESIRED> --nodes-min <MIN> --nodes-max <MAX>
+```
+
+> `<DESIRED>` must be ≤ the node group's max. To go higher than the current max,
+> raise `--nodes-max` in the same command. After the new node joins
+> (`kubectl get nodes`), the Pending pods schedule automatically.
+
+Alternatively, scale it in one line with the AWS CLI:
+
+```bash
+aws eks update-nodegroup-config --cluster-name cloudcart \
+  --nodegroup-name <NODEGROUP_NAME> \
+  --scaling-config minSize=1,maxSize=2,desiredSize=2 --region us-east-1
+```
 
 ---
 
@@ -246,6 +291,13 @@ kubectl get svc frontend -n cloudcart
 # wait for EXTERNAL-IP to become an ELB hostname, then open http://<EXTERNAL-IP>
 ```
 
+> **Open the LoadBalancer ports:** the frontend Service provisions an AWS load
+> balancer (`port: 80` → `targetPort: 3000`). Make sure its security group allows
+> inbound **TCP 80** (HTTP) so the app opens in a browser, and **TCP 443** if you
+> later add HTTPS/TLS. If you mapped the app to 8080, allow **TCP 8080** too. For
+> a demo you can allow these from your IP (or `0.0.0.0/0`); lock them down for
+> anything real.
+
 > This reuses the **same images** pushed in Step 2. Only the frontend gets a
 > public ELB — the backends stay internal (`ClusterIP`).
 
@@ -262,7 +314,7 @@ Identity** — a scoped IAM role, **no access keys in Kubernetes**.
 ```bash
 export AWS_REGION=us-east-1
 
-# 1) Create the 6 DynamoDB tables (idempotent, PAY_PER_REQUEST)
+# 1) Create the 6 DynamoDB tables AND the CloudCartDynamoDBPolicy IAM policy (idempotent)
 ./scripts/create-dynamodb-tables.sh
 
 # 2) Render <ACCOUNT_ID>/<REGION> into the DynamoDB manifests
@@ -281,12 +333,13 @@ eksctl create addon --cluster cloudcart --region us-east-1 --name eks-pod-identi
 # 5) Create the service account the pods use
 kubectl apply -f k8s/aws/service-account.yaml
 
-# 6) Create an IAM policy scoped to the tables, then associate it to the SA
+# 6) Associate the CloudCartDynamoDBPolicy (created in step 1) to the SA
+ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"
 eksctl create podidentityassociation \
   --cluster cloudcart --region us-east-1 \
   --namespace cloudcart \
   --service-account-name cloudcart-dynamodb \
-  --permission-policy-arns arn:aws:iam::<ACCOUNT_ID>:policy/CloudCartDynamoDBPolicy
+  --permission-policy-arns arn:aws:iam::${ACCOUNT_ID}:policy/CloudCartDynamoDBPolicy
 
 # 7) Restart backends so they pick up the identity
 kubectl rollout restart deployment -n cloudcart
@@ -296,12 +349,29 @@ kubectl get svc frontend -n cloudcart
 # open http://<EXTERNAL-IP>
 ```
 
+> **Open the LoadBalancer ports:** the frontend Service provisions an AWS load
+> balancer (`port: 80` → `targetPort: 3000`). Make sure its security group allows
+> inbound **TCP 80** (HTTP) so the app opens in a browser, and **TCP 443** if you
+> later add HTTPS/TLS. If you mapped the app to 8080, allow **TCP 8080** too. For
+> a demo you can allow these from your IP (or `0.0.0.0/0`); lock them down for
+> anything real.
+
 The `create-dynamodb-tables.sh` script creates 6 tables:
 `cloudcart-products`, `cloudcart-inventory`, `cloudcart-carts`,
 `cloudcart-orders`, `cloudcart-payments`, `cloudcart-users`.
 
 See [eks/pod-identity.md](./eks/pod-identity.md) for the exact IAM policy scoped
 to these tables.
+
+> **Note:** `create-dynamodb-tables.sh` (step 1) creates the `CloudCartDynamoDBPolicy` IAM policy for you, so the association in step 6 works. If you ran an older version of the script and the association failed with "Policy ... does not exist", re-run `./scripts/create-dynamodb-tables.sh`, delete the failed CloudFormation stack, then retry step 6:
+> ```bash
+> aws cloudformation delete-stack \
+>   --stack-name eksctl-cloudcart-podidentityrole-cloudcart-cloudcart-dynamodb \
+>   --region us-east-1
+> aws cloudformation wait stack-delete-complete \
+>   --stack-name eksctl-cloudcart-podidentityrole-cloudcart-cloudcart-dynamodb \
+>   --region us-east-1
+> ```
 
 Verify persistence after placing an order:
 ```bash
@@ -310,6 +380,43 @@ aws dynamodb scan --table-name cloudcart-orders --region us-east-1
 
 > Key point: the pod assumes an IAM role scoped to only these tables — no AWS
 > access keys live in Kubernetes.
+
+### If the Pod Identity association fails
+
+The association in step 7 provisions a CloudFormation stack for the pod-identity
+IAM role. It commonly fails with `Policy ... does not exist or is not attachable`
+when `CloudCartDynamoDBPolicy` was never created first (step 6 above), or when a
+previous failed attempt left the stack behind.
+
+Read the real reason from the stack events:
+
+```bash
+aws cloudformation describe-stack-events \
+  --stack-name eksctl-cloudcart-podidentityrole-cloudcart-cloudcart-dynamodb \
+  --region us-east-1 \
+  --query "StackEvents[?ResourceStatus=='CREATE_FAILED'].[LogicalResourceId,ResourceStatusReason]" \
+  --output table
+```
+
+Fix: create the policy (step 6), delete the failed stack, then re-run the
+association:
+
+```bash
+aws cloudformation delete-stack \
+  --stack-name eksctl-cloudcart-podidentityrole-cloudcart-cloudcart-dynamodb \
+  --region us-east-1
+aws cloudformation wait stack-delete-complete \
+  --stack-name eksctl-cloudcart-podidentityrole-cloudcart-cloudcart-dynamodb \
+  --region us-east-1
+```
+
+Then re-run the `eksctl create podidentityassociation` command from step 7.
+
+Check the association exists:
+
+```bash
+eksctl get podidentityassociation --cluster cloudcart --region us-east-1
+```
 
 ---
 
@@ -433,8 +540,9 @@ profile**, so there are **no AWS access keys stored on the box**.
 > **Note:** for demo/workshop purposes only — in real production, scope these
 > IAM permissions down to least privilege.
 
-**Facts:** Ubuntu latest (default LTS) AMI; a small instance is fine (e.g.
-`t3.medium`); root EBS volume 20 GB (gp3).
+**Facts:** Ubuntu latest (default LTS) AMI; **recommended instance type
+`t3.medium`** (2 vCPU / 4 GB — enough headroom to build all seven images with
+Docker); root EBS volume 20 GB (gp3).
 
 ### 1. Create the RSA PEM key pair
 Console: **EC2 → Key Pairs → Create key pair → RSA → .pem**. Name it e.g.
