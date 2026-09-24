@@ -193,7 +193,7 @@ export AWS_REGION=us-east-1
 
 ## Step 3 — Create the EKS cluster
 
-Create the cluster with eksctl:
+Create the cluster from the CLI — run this from your laptop or from the **bastion server** (see [Bastion server setup](#bastion-server-setup-optional)), both have `eksctl` installed.
 
 ```bash
 eksctl create cluster \
@@ -205,6 +205,18 @@ Takes ~15–20 min and configures `kubectl` for you.
 
 > Tip: use the **AWS Console only to *view*** the cluster (nodes, node group).
 > Creating clusters through the console wizard live is slow and error-prone.
+
+Once the cluster is created you point `kubectl` at it with `aws eks update-kubeconfig`. eksctl usually does this automatically, but run it manually if you're on a different machine (e.g. the bastion) or your kubeconfig isn't set.
+
+```bash
+# Point kubectl at the cluster (this workshop's values)
+aws eks update-kubeconfig --region us-east-1 --name cloudcart
+```
+
+```bash
+# Generic form — substitute your own region and cluster name
+aws eks update-kubeconfig --region <REGION> --name <CLUSTER_NAME>
+```
 
 Then `kubectl get nodes` to confirm the nodes are Ready. Next, pick a demo below.
 
