@@ -88,6 +88,7 @@ module "pod_identity" {
   namespace            = var.k8s_namespace
   service_account_name = var.k8s_service_account
   dynamodb_table_arns  = module.dynamodb[0].table_arns_list
+  kms_key_arn          = module.kms[0].key_arn
   common_tags          = var.common_tags
 
   # Cluster must exist before we can create a Pod Identity association on it.

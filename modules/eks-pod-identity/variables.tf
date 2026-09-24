@@ -49,3 +49,8 @@ variable "common_tags" {
   type        = map(string)
   default     = {}
 }
+variable "kms_key_arn" {
+  description = "ARN of the KMS key that encrypts the DynamoDB tables. When set, the role is granted kms:Decrypt/GenerateDataKey/DescribeKey on it so pods can read/write CMK-encrypted tables. Empty string = no KMS statement (AWS-owned key)."
+  type        = string
+  default     = ""
+}

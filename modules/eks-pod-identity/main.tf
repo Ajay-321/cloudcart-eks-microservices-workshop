@@ -34,6 +34,20 @@ data "aws_iam_policy_document" "dynamodb" {
     actions   = var.dynamodb_actions
     resources = var.dynamodb_table_arns
   }
+
+  dynamic "statement" {
+    for_each = var.kms_key_arn != "" ? [var.kms_key_arn] : []
+    content {
+      sid    = "DynamoDBKMSAccess"
+      effect = "Allow"
+      actions = [
+        "kms:Decrypt",
+        "kms:GenerateDataKey",
+        "kms:DescribeKey",
+      ]
+      resources = [statement.value]
+    }
+  }
 }
 
 resource "aws_iam_policy" "dynamodb" {
