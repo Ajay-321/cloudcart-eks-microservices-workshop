@@ -178,10 +178,42 @@ bridge to the next steps.
 
 ## Step 2 — Push images to Amazon ECR
 
+ECR is your private Docker registry on AWS; EKS pulls the images from here. Do it by hand once to see the moving parts, then use the script to automate all seven.
+
+### Option 1 — Manual (understand the steps)
+
 ```bash
 export AWS_REGION=us-east-1
-./scripts/push-to-ecr.sh       # builds + pushes all seven images
+export AWS_ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"
+export ECR="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+
+# 1) Log Docker in to your private ECR registry (token valid ~12h)
+aws ecr get-login-password --region "$AWS_REGION" \
+  | docker login --username AWS --password-stdin "$ECR"
+
+# 2) Create the repository (one per image). Ignore the error if it already exists.
+aws ecr create-repository --repository-name cloudcart-product-service --region "$AWS_REGION" || true
+
+# 3) Build the image from the service's Dockerfile
+docker build -t cloudcart-product-service:1.0 ./services/product-service
+
+# 4) Tag it for your ECR registry
+docker tag cloudcart-product-service:1.0 "$ECR/cloudcart-product-service:1.0"
+
+# 5) Push it
+docker push "$ECR/cloudcart-product-service:1.0"
 ```
+
+> Repeat steps 2–5 for the other six images (`frontend`, `inventory-service`, `cart-service`, `order-service`, `payment-service`, `auth-service`). The build path is `./frontend` for the frontend and `./services/<name>` for the backends. Doing all seven by hand is repetitive — which is exactly why the script exists.
+
+### Option 2 — Automate with the script
+
+```bash
+export AWS_REGION=us-east-1
+./scripts/push-to-ecr.sh       # logs in, creates repos if missing, builds + pushes all seven
+```
+
+The script does exactly the steps above (login → create repo if missing → build → tag → push) for all seven images, discovering your account id automatically.
 
 > **Bastion/role permissions:** pushing needs ECR access. Attach
 > `AmazonEC2ContainerRegistryFullAccess` to the instance role (it includes
@@ -291,15 +323,19 @@ kubectl get svc frontend -n cloudcart
 # wait for EXTERNAL-IP to become an ELB hostname, then open http://<EXTERNAL-IP>
 ```
 
-> **Open the LoadBalancer ports:** the frontend Service provisions an AWS load
-> balancer (`port: 80` → `targetPort: 3000`). Make sure its security group allows
-> inbound **TCP 80** (HTTP) so the app opens in a browser, and **TCP 443** if you
-> later add HTTPS/TLS. If you mapped the app to 8080, allow **TCP 8080** too. For
-> a demo you can allow these from your IP (or `0.0.0.0/0`); lock them down for
-> anything real.
-
 > This reuses the **same images** pushed in Step 2. Only the frontend gets a
 > public ELB — the backends stay internal (`ClusterIP`).
+
+> **Open the LoadBalancer's security group:** the `frontend` Service is
+> `type: LoadBalancer`, so EKS provisions an AWS load balancer (`port: 80` →
+> `targetPort: 3000`). To reach the app from a browser, its security group must
+> allow inbound **TCP 80** (HTTP). Add **TCP 443** as well if you later put
+> HTTPS/TLS in front of it. If you changed the Service to publish on 8080, allow
+> **TCP 8080** instead. For a demo you can allow these from your IP (or
+> `0.0.0.0/0`); scope them down for anything real. Find the load balancer's
+> security group in the EC2 console (Load Balancers → your ELB → Security), or
+> note that on a Classic ELB (the EKS default here) the SG is created
+> automatically — just add the inbound rule to it.
 
 **Reset before the DynamoDB demo:** `kubectl delete -f k8s/aws-nodynamo/`
 (keep the namespace).

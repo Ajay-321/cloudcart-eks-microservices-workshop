@@ -1,0 +1,67 @@
+name: dev_cloudcart_eks_workflow
+
+# Deploys the CloudCart EKS infrastructure (environments/dev/us-east-1) with Terraform.
+#
+# Auth model: this workflow uses a long-lived AWS ACCESS KEY + SECRET stored as
+# GitHub repository secrets. Add two secrets in
+# Settings -> Secrets and variables -> Actions:
+#   AWS_ACCESS_KEY_ID
+#   AWS_SECRET_ACCESS_KEY
+#
+# Runs on the GitHub-hosted "shared" runner (ubuntu-latest) — no self-hosted
+# runner required.
+
+on:
+  # Manual button in the Actions tab. Set tf_apply=true to actually apply.
+  workflow_dispatch:
+    inputs:
+      tf_apply:
+        description: run terraform apply
+        default: "false"
+  # Auto-run plan on pushes that touch infra code.
+  push:
+    paths:
+      - ".github/workflows/dev_cloudcart_eks_workflow.yml"
+      - "environments/dev/us-east-1/**"
+      - "modules/**"
+
+jobs:
+  Terraform:
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        shell: bash
+
+    env:
+      AWS_REGION: us-east-1
+      # Terraform picks these up automatically for the AWS provider.
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.12
+
+      # Fail early if any .tf file is not formatted.
+      - name: Terraform Format
+        run: terraform fmt -recursive -check -diff -write=false .
+
+      - name: Terraform Init
+        run: cd environments/dev/us-east-1 && terraform init -input=false
+
+      - name: Terraform Validate
+        run: cd environments/dev/us-east-1 && terraform validate
+
+      - name: Terraform Plan
+        run: cd environments/dev/us-east-1 && terraform plan -input=false
+
+      # Apply only on: push to main, OR a manual run with tf_apply=true.
+      - name: Terraform Apply
+        if: ((github.ref == 'refs/heads/main' && github.event_name == 'push') || (github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && github.event.inputs.tf_apply == 'true'))
+        run: cd environments/dev/us-east-1 && terraform apply -auto-approve -input=false

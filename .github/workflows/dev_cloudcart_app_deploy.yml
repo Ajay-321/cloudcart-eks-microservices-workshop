@@ -1,0 +1,86 @@
+# =============================================================================
+# CloudCart — APPLICATION deployment pipeline  (DISABLED by default)
+#
+# This is the OPTIONAL "finale" workflow. It automates the app deployment that
+# you otherwise do by hand:
+#   1. build the six Docker images
+#   2. push them to Amazon ECR
+#   3. point kubectl at the EKS cluster
+#   4. kubectl apply the manifests in k8s/aws/
+#
+# It is commented out on purpose. The app deploy is intentionally a manual step
+# by default; enable this workflow when you want the build/push/apply to run in
+# CI instead.
+#
+# ----------------------------------------------------------------------------
+# TO ENABLE:
+#   1. Uncomment everything below.
+#   2. Make sure these repo secrets exist:
+#        AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY
+#   3. The IAM user behind those keys MUST have kubectl access to the cluster.
+#      Terraform way: add that user to `access_entries` in terraform.tfvars, e.g.
+#        access_entries = {
+#          ci = {
+#            principal_arn = "arn:aws:iam::689351349581:user/<ci-user>"
+#            policy_arn    = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
+#            access_scope  = "cluster"
+#          }
+#        }
+#   4. The EKS cluster and ECR repos must already exist (run the Terraform
+#      workflow first).
+# ----------------------------------------------------------------------------
+#
+# name: dev_cloudcart_app_deploy
+#
+# on:
+#   workflow_dispatch:          # manual button in the Actions tab
+#   push:
+#     branches: [ main ]
+#     paths:                    # only run when the app or manifests change
+#       - "frontend/**"
+#       - "services/**"
+#       - "k8s/aws/**"
+#       - ".github/workflows/dev_cloudcart_app_deploy.yml"
+#
+# permissions:
+#   contents: read
+#
+# env:
+#   AWS_REGION: us-east-1
+#   CLUSTER_NAME: cloudcart
+#   IMAGE_TAG: "1.0"
+#   AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+#   AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+#
+# jobs:
+#   deploy:
+#     runs-on: ubuntu-latest
+#     steps:
+#       - name: Checkout
+#         uses: actions/checkout@v4
+#
+#       # Build + push all six images to ECR (reuses the repo's helper script).
+#       - name: Build and push images to ECR
+#         run: |
+#           chmod +x scripts/push-to-ecr.sh
+#           ./scripts/push-to-ecr.sh
+#
+#       # Render <ACCOUNT_ID>/<REGION> placeholders in the k8s/aws manifests.
+#       - name: Render manifests
+#         run: |
+#           chmod +x scripts/render-aws-manifests.sh
+#           ./scripts/render-aws-manifests.sh
+#
+#       # Configure kubectl for the cluster (needs cluster access for this IAM user).
+#       - name: Configure kubectl
+#         run: aws eks update-kubeconfig --name "$CLUSTER_NAME" --region "$AWS_REGION"
+#
+#       # Deploy namespace + all services, then wait for rollouts to finish.
+#       - name: Deploy to EKS
+#         run: |
+#           kubectl apply -f k8s/namespace.yaml
+#           kubectl apply -f k8s/aws/
+#           kubectl rollout status deployment/frontend -n cloudcart --timeout=180s
+#
+#       - name: Show the app URL
+#         run: kubectl get svc frontend -n cloudcart
