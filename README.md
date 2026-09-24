@@ -317,23 +317,27 @@ export AWS_REGION=us-east-1
 # 1) Create the 6 DynamoDB tables AND the CloudCartDynamoDBPolicy IAM policy (idempotent)
 ./scripts/create-dynamodb-tables.sh
 
-# 2) Render <ACCOUNT_ID>/<REGION> into the DynamoDB manifests
+# 2) Seed the catalogue: load the 24 products + matching stock into DynamoDB
+#    (tables start empty; without this the storefront shows 0 products)
+./scripts/seed-dynamodb.sh
+
+# 3) Render <ACCOUNT_ID>/<REGION> into the DynamoDB manifests
 ./scripts/render-aws-manifests.sh
 
-# 3) Deploy the app (references DynamoDB + a service account)
+# 4) Deploy the app (references DynamoDB + a service account)
 kubectl apply -f k8s/namespace.yaml
 kubectl apply -f k8s/aws/
 ```
 
 Then wire up Pod Identity:
 ```bash
-# 4) Install the EKS Pod Identity agent (once per cluster)
+# 5) Install the EKS Pod Identity agent (once per cluster)
 eksctl create addon --cluster cloudcart --region us-east-1 --name eks-pod-identity-agent
 
-# 5) Create the service account the pods use
+# 6) Create the service account the pods use
 kubectl apply -f k8s/aws/service-account.yaml
 
-# 6) Associate the CloudCartDynamoDBPolicy (created in step 1) to the SA
+# 7) Associate the CloudCartDynamoDBPolicy (created in step 1) to the SA
 ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"
 eksctl create podidentityassociation \
   --cluster cloudcart --region us-east-1 \
@@ -341,7 +345,7 @@ eksctl create podidentityassociation \
   --service-account-name cloudcart-dynamodb \
   --permission-policy-arns arn:aws:iam::${ACCOUNT_ID}:policy/CloudCartDynamoDBPolicy
 
-# 7) Restart backends so they pick up the identity
+# 8) Restart backends so they pick up the identity
 kubectl rollout restart deployment -n cloudcart
 
 # Get the URL
@@ -359,6 +363,8 @@ kubectl get svc frontend -n cloudcart
 The `create-dynamodb-tables.sh` script creates 6 tables:
 `cloudcart-products`, `cloudcart-inventory`, `cloudcart-carts`,
 `cloudcart-orders`, `cloudcart-payments`, `cloudcart-users`.
+
+> **Why seed?** In the no-DynamoDB demo the services served built-in sample data from memory. With DynamoDB the tables start empty, so `seed-dynamodb.sh` loads the same 24-product catalogue (and matching stock) — that's why the storefront now shows products just like before.
 
 See [eks/pod-identity.md](./eks/pod-identity.md) for the exact IAM policy scoped
 to these tables.
