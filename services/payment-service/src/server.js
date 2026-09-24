@@ -1,0 +1,10 @@
+const express=require("express"); const cors=require("cors"); const crypto=require("crypto");
+const {DynamoDBClient}=require("@aws-sdk/client-dynamodb");
+const {DynamoDBDocumentClient,PutCommand,ScanCommand}=require("@aws-sdk/lib-dynamodb");
+const app=express(); app.use(cors()); app.use(express.json());
+const port=process.env.PORT||3000,useDynamo=process.env.USE_DYNAMODB==="true",table=process.env.DYNAMODB_TABLE||"cloudcart-payments";
+const db=DynamoDBDocumentClient.from(new DynamoDBClient({region:process.env.AWS_REGION}));
+app.get("/health",(_,r)=>r.json({service:"payment-service",status:"ok"}));
+app.post("/payments",async(q,r)=>{const payment={paymentId:"PAY-"+crypto.randomUUID().slice(0,8),orderId:q.body.orderId,amount:q.body.amount,status:"SUCCESS",createdAt:new Date().toISOString()};try{if(useDynamo)await db.send(new PutCommand({TableName:table,Item:payment}));r.json(payment)}catch(e){r.status(500).json({error:e.message})}});
+app.get("/payments",async(_,r)=>{try{if(!useDynamo)return r.json([]);r.json((await db.send(new ScanCommand({TableName:table}))).Items||[])}catch(e){r.status(500).json({error:e.message})}});
+app.listen(port,()=>console.log(`payment-service listening on ${port}`));

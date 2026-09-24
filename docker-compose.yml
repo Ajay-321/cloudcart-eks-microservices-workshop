@@ -1,0 +1,96 @@
+# ===========================================================================
+# CloudCart — local multi-container run with Docker Compose
+#
+# Run the whole microservices app on one machine with Docker, before moving it
+# to Kubernetes or AWS.
+#
+#   docker compose up --build          # build all images and start everything
+#   open http://localhost:8080         # the frontend UI (home /, /login, /signup, /dashboard)
+#   docker compose ps                  # see the running containers (short names)
+#   docker compose down                # stop and remove containers
+#
+# Each service gets a short, friendly image + container name (frontend,
+# cart-service, order-service, auth-service, ...) so `docker ps` is easy to read.
+#
+# Compose puts every service on one private network and gives each a DNS name
+# equal to its service key below (e.g. http://product-service:3000). This is
+# the SAME service-discovery idea Kubernetes uses, which makes the jump to k8s
+# much smaller.
+#
+# USE_DYNAMODB=false => services use in-memory/seed data, so NO AWS account is
+# needed for local development.
+# ===========================================================================
+services:
+  # ---- Edge / UI. The only service published to the host (localhost:8080) ----
+  frontend:
+    build: ./frontend
+    image: frontend:1.0
+    container_name: frontend
+    ports:
+      - "8080:3000" # host:container -> browse http://localhost:8080
+    environment:
+      PRODUCT_SERVICE_URL: http://product-service:3000
+      INVENTORY_SERVICE_URL: http://inventory-service:3000
+      CART_SERVICE_URL: http://cart-service:3000
+      ORDER_SERVICE_URL: http://order-service:3000
+      PAYMENT_SERVICE_URL: http://payment-service:3000
+      AUTH_SERVICE_URL: http://auth-service:3000
+    depends_on:
+      - product-service
+      - inventory-service
+      - cart-service
+      - order-service
+      - payment-service
+      - auth-service
+
+  # ---- Product catalogue -----------------------------------------------------
+  product-service:
+    build: ./services/product-service
+    image: product-service:1.0
+    container_name: product-service
+    environment: { USE_DYNAMODB: "false", AWS_REGION: "us-east-1" }
+
+  # ---- Stock levels ----------------------------------------------------------
+  inventory-service:
+    build: ./services/inventory-service
+    image: inventory-service:1.0
+    container_name: inventory-service
+    environment: { USE_DYNAMODB: "false", AWS_REGION: "us-east-1" }
+
+  # ---- Shopping cart ---------------------------------------------------------
+  cart-service:
+    build: ./services/cart-service
+    image: cart-service:1.0
+    container_name: cart-service
+    environment: { USE_DYNAMODB: "false", AWS_REGION: "us-east-1" }
+
+  # ---- Order orchestration (calls inventory + payment) -----------------------
+  order-service:
+    build: ./services/order-service
+    image: order-service:1.0
+    container_name: order-service
+    environment:
+      USE_DYNAMODB: "false"
+      AWS_REGION: "us-east-1"
+      INVENTORY_SERVICE_URL: http://inventory-service:3000
+      PAYMENT_SERVICE_URL: http://payment-service:3000
+    depends_on:
+      - inventory-service
+      - payment-service
+
+  # ---- Mock payment ----------------------------------------------------------
+  payment-service:
+    build: ./services/payment-service
+    image: payment-service:1.0
+    container_name: payment-service
+    environment: { USE_DYNAMODB: "false", AWS_REGION: "us-east-1" }
+
+  # ---- Signup / login (JWT) ---------------------------------------------------
+  auth-service:
+    build: ./services/auth-service
+    image: auth-service:1.0
+    container_name: auth-service
+    environment:
+      USE_DYNAMODB: "false"
+      AWS_REGION: "us-east-1"
+      JWT_SECRET: "cloudcart-dev-secret-change-me"

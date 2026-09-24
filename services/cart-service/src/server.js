@@ -1,0 +1,11 @@
+const express=require("express"); const cors=require("cors");
+const {DynamoDBClient}=require("@aws-sdk/client-dynamodb");
+const {DynamoDBDocumentClient,GetCommand,PutCommand}=require("@aws-sdk/lib-dynamodb");
+const app=express(); app.use(cors()); app.use(express.json());
+const port=process.env.PORT||3000,useDynamo=process.env.USE_DYNAMODB==="true",table=process.env.DYNAMODB_TABLE||"cloudcart-carts";
+const db=DynamoDBDocumentClient.from(new DynamoDBClient({region:process.env.AWS_REGION}));
+const memory=new Map();
+app.get("/health",(_,r)=>r.json({service:"cart-service",status:"ok"}));
+app.get("/cart/:userId",async(q,r)=>{try{if(!useDynamo)return r.json(memory.get(q.params.userId)||{userId:q.params.userId,items:[]});const x=await db.send(new GetCommand({TableName:table,Key:{userId:q.params.userId}}));r.json(x.Item||{userId:q.params.userId,items:[]})}catch(e){r.status(500).json({error:e.message})}});
+app.post("/cart/:userId",async(q,r)=>{try{const item={userId:q.params.userId,items:q.body.items||[]};if(useDynamo)await db.send(new PutCommand({TableName:table,Item:item}));else memory.set(q.params.userId,item);r.json(item)}catch(e){r.status(500).json({error:e.message})}});
+app.listen(port,()=>console.log(`cart-service listening on ${port}`));

@@ -1,0 +1,45 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cart-service
+  namespace: cloudcart
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: cart-service
+  template:
+    metadata:
+      labels:
+        app: cart-service
+    spec:
+      serviceAccountName: cloudcart-dynamodb
+      containers:
+        - name: cart-service
+          image: <ACCOUNT_ID>.dkr.ecr.<REGION>.amazonaws.com/cloudcart-cart-service:1.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 3000
+          env:
+
+            - name: USE_DYNAMODB
+              value: "true"
+            - name: AWS_REGION
+              value: "us-east-1"
+
+            # NOTE: table name must match scripts/create-dynamodb-tables.sh (plural)
+            - name: DYNAMODB_TABLE
+              value: "cloudcart-carts"
+
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 3000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3000
+            initialDelaySeconds: 15
+            periodSeconds: 20

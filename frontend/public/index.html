@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>CloudCart — Shop the cloud</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%E2%98%81%EF%B8%8F%3C/text%3E%3C/svg%3E"/>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="/css/styles.css"/>
+</head>
+<body>
+  <div id="site-header"></div>
+
+  <main>
+    <div class="container">
+      <section class="hero">
+        <div>
+          <div class="live-badge" id="live-badge"><span class="live-dot" id="live-dot"></span><span id="live-text">Checking cluster…</span></div>
+          <h1>Shop the cloud.<br/>Built on Kubernetes.</h1>
+          <p>Every product you see here is served by an independent microservice running in its own pod — browse the catalogue, fill your cart, and check out for real.</p>
+          <div class="hero-actions">
+            <a href="#catalogue" class="btn btn-primary">Browse catalogue</a>
+            <a href="/dashboard" class="btn btn-outline">View live dashboard</a>
+          </div>
+          <div class="hero-stats" id="hero-stats">
+            <div><b id="stat-products">—</b><span>Products</span></div>
+            <div><b id="stat-categories">—</b><span>Categories</span></div>
+            <div><b>6</b><span>Microservices</span></div>
+          </div>
+        </div>
+        <div class="hero-visual">
+          <div class="arch-strip">
+            <div class="arch-label"><span>request path</span><span>live</span></div>
+            <div class="arch-row" id="arch-row"><!-- nodes injected by home.js --></div>
+          </div>
+        </div>
+      </section>
+
+      <section id="catalogue">
+        <h2 class="section-title">Product catalogue</h2>
+        <div class="toolbar">
+          <div class="search-box">
+            <span class="icon">🔍</span>
+            <input type="text" id="search-input" placeholder="Search products, categories, keywords…"/>
+          </div>
+          <div class="chips" id="category-chips"></div>
+        </div>
+        <div class="toolbar-row">
+          <p class="result-count" id="result-count"></p>
+          <select class="sort-select" id="sort-select">
+            <option value="featured">Sort: Featured</option>
+            <option value="price-asc">Price: Low to high</option>
+            <option value="price-desc">Price: High to low</option>
+            <option value="rating">Rating</option>
+            <option value="stock">Stock available</option>
+          </select>
+        </div>
+        <div class="grid" id="products">
+          <div class="card skeleton" style="height:270px"></div>
+          <div class="card skeleton" style="height:270px"></div>
+          <div class="card skeleton" style="height:270px"></div>
+          <div class="card skeleton" style="height:270px"></div>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <footer>CloudCart — a Kubernetes &amp; Amazon EKS workshop app. Frontend → Product / Inventory / Cart / Order / Payment / Auth microservices.</footer>
+
+  <!-- Cart drawer -->
+  <div class="overlay" id="cart-overlay"></div>
+  <aside class="drawer" id="cart-drawer" aria-label="Shopping cart">
+    <div class="drawer-head">
+      <h3>Your cart</h3>
+      <button class="icon-btn" id="cart-close" style="color:var(--text);border-color:var(--border)">✕</button>
+    </div>
+    <div class="drawer-body" id="cart-body"></div>
+    <div class="drawer-foot">
+      <div class="summary-row"><span>Subtotal</span><span id="cart-subtotal">₹0</span></div>
+      <div class="summary-row total"><span>Total</span><span id="cart-total">₹0</span></div>
+      <button class="btn btn-dark btn-block" id="checkout-btn">Checkout</button>
+    </div>
+  </aside>
+
+  <!-- Quick view modal -->
+  <div class="modal" id="quickview-modal">
+    <div class="quickview-card" id="quickview-body"></div>
+  </div>
+
+  <!-- Order confirmation modal -->
+  <div class="modal" id="order-modal">
+    <div class="modal-card">
+      <div class="glyph" id="order-modal-glyph">📦</div>
+      <h3 id="order-modal-title">Placing your order…</h3>
+      <p id="order-modal-sub">Watch it move through the order, inventory and payment services.</p>
+
+      <div class="flow-steps" id="flow-steps">
+        <div class="flow-track" id="flow-track"></div>
+        <div class="flow-step" data-step="cart"><div class="dot">1</div><span class="label">Cart</span></div>
+        <div class="flow-step" data-step="inventory"><div class="dot">2</div><span class="label">Inventory</span></div>
+        <div class="flow-step" data-step="payment"><div class="dot">3</div><span class="label">Payment</span></div>
+        <div class="flow-step" data-step="confirmed"><div class="dot">✓</div><span class="label">Confirmed</span></div>
+      </div>
+
+      <div class="order-meta" id="order-meta" style="display:none"></div>
+      <button class="btn btn-primary btn-block" id="order-modal-close" style="display:none">Keep shopping</button>
+    </div>
+  </div>
+
+  <script src="/js/common.js"></script>
+  <script src="/js/home.js"></script>
+</body>
+</html>

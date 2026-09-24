@@ -1,0 +1,48 @@
+# ---------------------------------------------------------------------------
+# Deployment: product-service (LOCAL / in-memory mode, USE_DYNAMODB=false)
+#
+# A Deployment manages a ReplicaSet, which keeps N identical Pods running.
+# If a Pod dies, the ReplicaSet recreates it — Kubernetes' core self-healing
+# and scaling primitive.
+# ---------------------------------------------------------------------------
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: product-service
+  namespace: cloudcart
+spec:
+  replicas: 2                       # desired number of Pods (edit + re-apply to scale)
+  selector:
+    matchLabels:
+      app: product-service          # this Deployment owns Pods with this label
+  template:                         # Pod template used to create each replica
+    metadata:
+      labels:
+        app: product-service        # must match the selector above AND the Service selector
+    spec:
+      containers:
+        - name: product-service
+          # Local image tag; on kind/minikube load this image into the cluster first.
+          image: product-service:1.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 3000
+          env:
+            - name: USE_DYNAMODB      # "false" => use in-memory seed data, no AWS needed
+              value: "false"
+            - name: AWS_REGION
+              value: "us-east-1"
+          # readinessProbe: don't send traffic until /health returns 200
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 3000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          # livenessProbe: restart the container if /health stops responding
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3000
+            initialDelaySeconds: 15
+            periodSeconds: 20

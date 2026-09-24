@@ -1,0 +1,8 @@
+# A Namespace is a virtual cluster inside your Kubernetes cluster.
+# It groups all CloudCart objects (Deployments, Services, etc.) so they are
+# isolated from other apps and easy to list/delete together:
+#   kubectl get all -n cloudcart
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: cloudcart

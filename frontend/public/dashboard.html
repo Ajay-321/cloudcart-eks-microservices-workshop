@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Dashboard — CloudCart</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%E2%98%81%EF%B8%8F%3C/text%3E%3C/svg%3E"/>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet"/>
+  <link rel="stylesheet" href="/css/styles.css"/>
+</head>
+<body>
+  <div id="site-header"></div>
+
+  <main>
+    <div class="container">
+      <div class="dash-head">
+        <div>
+          <h1 id="dash-title">Dashboard</h1>
+          <p class="muted" id="dash-sub">Live view across product, inventory, order and payment microservices.</p>
+        </div>
+        <div class="dash-actions">
+          <span class="refresh-timer" id="refresh-timer"></span>
+          <button class="btn btn-outline btn-sm" id="refresh-btn">🔄 Refresh</button>
+        </div>
+      </div>
+
+      <div class="kpi-grid" id="kpi-grid">
+        <div class="kpi-card"><div class="label">Total revenue</div><div class="value skeleton" style="height:28px;width:70%"></div></div>
+        <div class="kpi-card"><div class="label">Total orders</div><div class="value skeleton" style="height:28px;width:50%"></div></div>
+        <div class="kpi-card"><div class="label">Avg order value</div><div class="value skeleton" style="height:28px;width:60%"></div></div>
+        <div class="kpi-card"><div class="label">Low stock alerts</div><div class="value skeleton" style="height:28px;width:40%"></div></div>
+      </div>
+
+      <div class="health-panel">
+        <div class="health-panel-head">
+          <h3>Cluster health — six microservices, pinged live</h3>
+          <span class="health-summary" id="health-summary">checking…</span>
+        </div>
+        <div class="health-grid" id="health-grid"></div>
+      </div>
+
+      <div class="charts-grid">
+        <div class="panel">
+          <h3>Revenue per order</h3>
+          <div class="chart-wrap"><canvas id="chart-revenue"></canvas></div>
+        </div>
+        <div class="panel">
+          <h3>Inventory by category</h3>
+          <div class="chart-wrap"><canvas id="chart-inventory"></canvas></div>
+        </div>
+      </div>
+
+      <div class="charts-grid-2">
+        <div class="panel">
+          <h3>Revenue by category</h3>
+          <div class="chart-wrap sm"><canvas id="chart-category-revenue"></canvas></div>
+        </div>
+        <div class="panel">
+          <h3>Catalogue mix</h3>
+          <div class="chart-wrap sm"><canvas id="chart-catalogue-mix"></canvas></div>
+        </div>
+      </div>
+
+      <div class="bottom-grid">
+        <div class="panel">
+          <h3>Top products</h3>
+          <ul class="leaderboard" id="leaderboard"></ul>
+        </div>
+        <div class="panel">
+          <h3>Recent orders</h3>
+          <div id="orders-table-wrap">
+            <table class="data-table">
+              <thead><tr><th>Order</th><th>User</th><th>Items</th><th>Total</th><th>Status</th><th>Placed</th></tr></thead>
+              <tbody id="orders-body">
+                <tr><td colspan="6"><div class="skeleton" style="height:18px"></div></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <footer>Data on this page is aggregated in your browser from the product, inventory and order microservices — no separate analytics service required.</footer>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+  <script src="/js/common.js"></script>
+  <script src="/js/dashboard.js"></script>
+</body>
+</html>

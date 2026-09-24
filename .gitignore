@@ -1,0 +1,137 @@
+# ==============================================================================
+# CloudCart .gitignore
+# Node.js/Express microservices + Terraform IaC + Kubernetes/AWS tooling
+# Conservative, well-known patterns. Comments explain non-obvious choices.
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# Node.js
+# ------------------------------------------------------------------------------
+node_modules/
+
+# Debug / error logs from package managers
+# NOTE: We ignore the *logs* only. package.json and lock files
+#       (package-lock.json, yarn.lock, pnpm-lock.yaml) are intentionally
+#       NOT ignored so they stay committed.
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.npm
+
+# Test coverage output
+coverage/
+.nyc_output
+
+# Build output (frontend has no build step, but these are harmless generics)
+dist/
+build/
+
+# TypeScript incremental build info
+*.tsbuildinfo
+
+# Environment variables (secrets). Keep the checked-in template .env.example.
+.env
+.env.*
+!.env.example
+
+# ------------------------------------------------------------------------------
+# Terraform
+# ------------------------------------------------------------------------------
+# Local Terraform working directory AND all dotfile artifacts (broad glob).
+# This catches .terraform/, .terraform.tfstate.lock.info, etc.
+.terraform/
+.terraform.*
+
+# Provider lock file matches .terraform.* above, but it is meant to be
+# committed — negate it right after so it stays tracked.
+!.terraform.lock.hcl
+
+# State files (may contain secrets; never commit)
+*.tfstate
+*.tfstate.*
+
+# Plan output files (binary plans can contain secrets)
+*.tfplan
+tfplan
+*.plan
+
+# Crash logs
+crash.log
+crash.*.log
+
+# Variable files.
+# NOTE (tfvars): terraform.tfvars IS committed for this workshop (README
+#       instructs editing environments/dev/us-east-1/terraform.tfvars).
+#       Do not ignore it. We still ignore machine-specific auto-loaded and
+#       secret-ish variants below.
+*.auto.tfvars
+*.auto.tfvars.json
+*secret*.tfvars
+*secret*.tfvars.json
+
+# Override files are for local, non-committed overrides.
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# CLI configuration (may contain credentials/tokens)
+.terraformrc
+terraform.rc
+
+# ------------------------------------------------------------------------------
+# AWS / Credentials
+# ------------------------------------------------------------------------------
+# Credential/secret files that must never be committed.
+.aws/
+aws-credentials
+*.pem
+*.key
+kubeconfig
+.kube/
+credentials
+*.p12
+*.pfx
+*.keystore
+*.jks
+id_rsa
+id_rsa.*
+id_ed25519
+id_ed25519.*
+*.ppk
+secrets.*
+*.secret
+.env.local
+
+# ------------------------------------------------------------------------------
+# OS files
+# ------------------------------------------------------------------------------
+# macOS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+# Windows
+ehthumbs.db
+Thumbs.db
+desktop.ini
+
+# ------------------------------------------------------------------------------
+# Editor / IDE
+# ------------------------------------------------------------------------------
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.*.sw?
+
+# NOTE: .kiro/ holds specs that SHOULD be committed — do NOT ignore it.
+
+# ------------------------------------------------------------------------------
+# Logs
+# ------------------------------------------------------------------------------
+*.log
+logs/

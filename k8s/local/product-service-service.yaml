@@ -1,0 +1,20 @@
+# ---------------------------------------------------------------------------
+# Service: product-service (ClusterIP = internal only)
+#
+# A Service gives a stable DNS name + virtual IP in front of a set of Pods
+# (selected by label). Pods come and go, but "http://product-service" always
+# works from inside the cluster. ClusterIP means it is NOT exposed publicly.
+# The frontend reaches this at http://product-service (port 80 -> Pod 3000).
+# ---------------------------------------------------------------------------
+apiVersion: v1
+kind: Service
+metadata:
+  name: product-service
+  namespace: cloudcart
+spec:
+  type: ClusterIP
+  selector:
+    app: product-service      # routes to Pods carrying label app=product-service
+  ports:
+    - port: 80                # port other services call
+      targetPort: 3000        # container port the app listens on
