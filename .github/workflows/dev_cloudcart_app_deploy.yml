@@ -1,86 +1,153 @@
 # =============================================================================
-# CloudCart — APPLICATION deployment pipeline  (DISABLED by default)
+# CloudCart — automated APPLICATION deployment pipeline
 #
-# This is the OPTIONAL "finale" workflow. It automates the app deployment that
-# you otherwise do by hand:
-#   1. build the six Docker images
-#   2. push them to Amazon ECR
-#   3. point kubectl at the EKS cluster
-#   4. kubectl apply the manifests in k8s/aws/
+# This workflow deploys ONLY the app, as four sequential stages:
+#   1. build_and_push  — build + push all 7 images to Amazon ECR
+#   2. deploy          — render manifests + kubectl apply to EKS
+#   3. seed            — seed the DynamoDB catalogue (products + inventory)
+#   4. show_url        — print the frontend LoadBalancer URL
 #
-# It is commented out on purpose. The app deploy is intentionally a manual step
-# by default; enable this workflow when you want the build/push/apply to run in
-# CI instead.
-#
-# ----------------------------------------------------------------------------
-# TO ENABLE:
-#   1. Uncomment everything below.
-#   2. Make sure these repo secrets exist:
-#        AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY
-#   3. The IAM user behind those keys MUST have kubectl access to the cluster.
-#      Terraform way: add that user to `access_entries` in terraform.tfvars, e.g.
-#        access_entries = {
-#          ci = {
-#            principal_arn = "arn:aws:iam::689351349581:user/<ci-user>"
-#            policy_arn    = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
-#            access_scope  = "cluster"
-#          }
-#        }
-#   4. The EKS cluster and ECR repos must already exist (run the Terraform
-#      workflow first).
-# ----------------------------------------------------------------------------
-#
-# name: dev_cloudcart_app_deploy
-#
-# on:
-#   workflow_dispatch:          # manual button in the Actions tab
-#   push:
-#     branches: [ main ]
-#     paths:                    # only run when the app or manifests change
-#       - "frontend/**"
-#       - "services/**"
-#       - "k8s/aws/**"
-#       - ".github/workflows/dev_cloudcart_app_deploy.yml"
-#
-# permissions:
-#   contents: read
-#
-# env:
-#   AWS_REGION: us-east-1
-#   CLUSTER_NAME: cloudcart
-#   IMAGE_TAG: "1.0"
-#   AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-#   AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-#
-# jobs:
-#   deploy:
-#     runs-on: ubuntu-latest
-#     steps:
-#       - name: Checkout
-#         uses: actions/checkout@v4
-#
-#       # Build + push all six images to ECR (reuses the repo's helper script).
-#       - name: Build and push images to ECR
-#         run: |
-#           chmod +x scripts/push-to-ecr.sh
-#           ./scripts/push-to-ecr.sh
-#
-#       # Render <ACCOUNT_ID>/<REGION> placeholders in the k8s/aws manifests.
-#       - name: Render manifests
-#         run: |
-#           chmod +x scripts/render-aws-manifests.sh
-#           ./scripts/render-aws-manifests.sh
-#
-#       # Configure kubectl for the cluster (needs cluster access for this IAM user).
-#       - name: Configure kubectl
-#         run: aws eks update-kubeconfig --name "$CLUSTER_NAME" --region "$AWS_REGION"
-#
-#       # Deploy namespace + all services, then wait for rollouts to finish.
-#       - name: Deploy to EKS
-#         run: |
-#           kubectl apply -f k8s/namespace.yaml
-#           kubectl apply -f k8s/aws/
-#           kubectl rollout status deployment/frontend -n cloudcart --timeout=180s
-#
-#       - name: Show the app URL
-#         run: kubectl get svc frontend -n cloudcart
+# The infrastructure (EKS cluster, ECR repos, DynamoDB tables, Pod Identity)
+# must ALREADY EXIST — run the Terraform workflow first. The AWS credentials
+# used here (AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY) must belong to the same
+# IAM identity that ran the Terraform apply, so it has cluster admin + ECR +
+# DynamoDB access.
+# =============================================================================
+
+name: dev_cloudcart_app_deploy
+
+on:
+  workflow_dispatch:          # manual "Run workflow" button in the Actions tab
+  push:
+    branches: [ main ]
+    paths:                    # only run when the app, manifests, or scripts change
+      - "frontend/**"
+      - "services/**"
+      - "k8s/aws/**"
+      - "scripts/**"
+      - ".github/workflows/dev_cloudcart_app_deploy.yml"
+
+permissions:
+  contents: read
+
+env:
+  AWS_REGION: us-east-1
+  CLUSTER_NAME: cloudcart
+  IMAGE_TAG: "1.0"
+  AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+  AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+
+jobs:
+  # --- Stage 1: build + push all 7 images to ECR -----------------------------
+  build_and_push:
+    name: Build & push images to ECR
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build and push all images
+        run: |
+          chmod +x scripts/push-to-ecr.sh
+          ./scripts/push-to-ecr.sh
+
+  # --- Stage 2: deploy manifests to EKS --------------------------------------
+  deploy:
+    name: Deploy to EKS
+    runs-on: ubuntu-latest
+    needs: build_and_push
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Render manifests
+        run: |
+          chmod +x scripts/render-aws-manifests.sh
+          ./scripts/render-aws-manifests.sh
+
+      - name: Configure kubectl
+        run: aws eks update-kubeconfig --name "$CLUSTER_NAME" --region "$AWS_REGION"
+
+      - name: Apply manifests
+        run: |
+          kubectl apply -f k8s/namespace.yaml
+          kubectl apply -f k8s/aws/
+
+      - name: Wait for rollouts
+        run: |
+          kubectl rollout status deployment/frontend -n cloudcart --timeout=180s
+          kubectl rollout status deployment -n cloudcart --timeout=180s || true
+
+  # --- Stage 3: seed the DynamoDB catalogue ----------------------------------
+  seed:
+    name: Seed DynamoDB catalogue
+    runs-on: ubuntu-latest
+    needs: deploy
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Seed products + inventory
+        run: |
+          chmod +x scripts/seed-dynamodb.sh
+          ./scripts/seed-dynamodb.sh
+
+      - name: Restart backends to pick up data (optional)
+        run: |
+          aws eks update-kubeconfig --name "$CLUSTER_NAME" --region "$AWS_REGION"
+          kubectl rollout restart deployment -n cloudcart
+
+  # --- Stage 4: print the app URL --------------------------------------------
+  show_url:
+    name: Show app URL
+    runs-on: ubuntu-latest
+    needs: seed
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Configure kubectl
+        run: aws eks update-kubeconfig --name "$CLUSTER_NAME" --region "$AWS_REGION"
+
+      - name: Print LoadBalancer URL
+        run: |
+          echo "Waiting for LoadBalancer hostname..."
+          for i in $(seq 1 30); do
+            HOST=$(kubectl get svc frontend -n cloudcart -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' 2>/dev/null || true)
+            [ -n "$HOST" ] && break
+            sleep 10
+          done
+          echo "App URL: http://${HOST:-<pending>}"
+          echo "NOTE: open TCP 80 on the LoadBalancer's security group to reach it."
+
+      - name: Open port 80 on the LoadBalancer security group
+        run: |
+          ELB_HOST=$(kubectl get svc frontend -n cloudcart -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' 2>/dev/null || true)
+          if [ -z "$ELB_HOST" ]; then
+            echo "LoadBalancer hostname not ready yet; skipping SG rule. Re-run this job or add the rule manually (inbound TCP 80)."
+            exit 0
+          fi
+          ELB_NAME=$(echo "$ELB_HOST" | cut -d- -f1)
+          echo "Classic ELB name: $ELB_NAME"
+          SG_ID=$(aws elb describe-load-balancers --load-balancer-names "$ELB_NAME" \
+            --region "$AWS_REGION" \
+            --query 'LoadBalancerDescriptions[0].SecurityGroups[0]' --output text 2>/dev/null || true)
+          if [ -z "$SG_ID" ] || [ "$SG_ID" = "None" ]; then
+            echo "Could not resolve the ELB security group; add inbound TCP 80 manually."
+            exit 0
+          fi
+          echo "LoadBalancer security group: $SG_ID"
+          aws ec2 authorize-security-group-ingress \
+            --group-id "$SG_ID" --protocol tcp --port 80 --cidr 0.0.0.0/0 \
+            --region "$AWS_REGION" 2>/dev/null \
+            && echo "Opened inbound TCP 80 on $SG_ID" \
+            || echo "Inbound TCP 80 already allowed on $SG_ID (or add manually)."

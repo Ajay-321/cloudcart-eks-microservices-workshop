@@ -505,6 +505,24 @@ separate step.
 After `terraform apply`, deploy the app using the Step 4 (no DynamoDB) or
 Step 5 (DynamoDB) manifests.
 
+### Automated app deployment pipeline
+
+The workflow `.github/workflows/dev_cloudcart_app_deploy.yml` automates the app
+deployment as four sequential stages: **(1)** build & push all images to ECR,
+**(2)** deploy the manifests to EKS, **(3)** seed the DynamoDB catalogue, and
+**(4)** print the app URL and open **TCP 80** on the frontend LoadBalancer's
+security group automatically. It triggers on push to `main` (when `frontend/**`,
+`services/**`, `k8s/aws/**`, `scripts/**`, or the workflow file change) or via
+the manual **Run workflow** button. The infra must already exist — run the
+Terraform workflow first. It uses the same `AWS_ACCESS_KEY_ID` /
+`AWS_SECRET_ACCESS_KEY` secrets, whose IAM identity must have EKS cluster access
+(it does if it ran the Terraform apply).
+
+> The pipeline now opens **TCP 80** on the frontend LoadBalancer's security group
+> automatically (stage 4). This is a Classic ELB on port 80 — note that on EKS the
+> app is served on **port 80**, not 8080 (8080 was only the local Docker Compose port).
+> A future **Ingress / ALB** setup will manage this more cleanly.
+
 Full detail and troubleshooting: **[DEPLOYMENT-GUIDE.md](./DEPLOYMENT-GUIDE.md)**.
 
 ---
