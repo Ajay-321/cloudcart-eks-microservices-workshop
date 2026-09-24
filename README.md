@@ -523,15 +523,126 @@ Terraform workflow first. It uses the same `AWS_ACCESS_KEY_ID` /
 > app is served on **port 80**, not 8080 (8080 was only the local Docker Compose port).
 > A future **Ingress / ALB** setup will manage this more cleanly.
 
+### Tear down the Terraform stack (targeted)
+
+When you're done, remove the cost-heavy infra (EKS + NAT gateway) but keep the
+KMS key to avoid its 7–30 day deletion window on recreate. Do NOT delete
+resources by hand or by commenting out module calls — that causes state drift /
+undefined-reference errors. Use a **targeted `terraform destroy`** instead; the
+code stays unchanged so you can recreate later with a plain `terraform apply`.
+
+```bash
+cd environments/dev/us-east-1
+
+# 1) Delete the app FIRST so the frontend LoadBalancer/ELB is released
+#    (an orphaned ELB blocks the VPC from deleting).
+aws eks update-kubeconfig --region us-east-1 --name cloudcart
+kubectl delete namespace cloudcart 2>/dev/null || true
+
+# 2) Targeted destroy — remove EKS + ECR + DynamoDB + Pod Identity + VPC,
+#    but KEEP the KMS key/alias (destroying it starts a 7–30 day window).
+terraform destroy \
+  -target=module.pod_identity \
+  -target=module.dynamodb \
+  -target=module.ecr \
+  -target=module.eks \
+  -target=module.vpc
+# review the plan, then type: yes
+```
+
+> - Why VPC too: the VPC's **NAT gateway** costs money hourly, so destroy it as
+>   well (there's nothing to run in it once the cluster is gone).
+> - `module.pod_identity` depends on `module.eks`/`module.dynamodb`, so it must be
+>   included in the same destroy.
+> - The outputs for the destroyed modules will just show empty/null afterward —
+>   that's expected, no code changes needed.
+> - KMS note: the KMS key + `alias/cloudcart` remain. Because you keep it, a later
+>   `terraform apply` reuses it cleanly. (If you'd rather remove everything, drop
+>   the `-target` flags and run a plain `terraform destroy`.)
+
+Recreate later:
+
+```bash
+# When you want it back — no code changes, just re-apply:
+terraform apply       # or re-run the Terraform GitHub Actions workflow on main
+```
+
+Note: `terraform apply` recreates EKS/ECR/DynamoDB/VPC/Pod Identity and reuses
+the existing KMS key.
+
 Full detail and troubleshooting: **[DEPLOYMENT-GUIDE.md](./DEPLOYMENT-GUIDE.md)**.
 
 ---
 
 ## Cleanup (avoid charges)
 
+Deleting the cluster stops the biggest charges, but a few resources created by the manual path are NOT removed by `eksctl delete cluster` and must be cleaned up separately.
+
+### Delete the cluster
+
 ```bash
 eksctl delete cluster --name cloudcart --region us-east-1        # if you used eksctl (Step 3)
 cd environments/dev/us-east-1 && terraform destroy               # if you used Terraform (Step 6)
+```
+
+`eksctl delete cluster` removes the cluster, node group, its VPC, and the frontend LoadBalancer/ELB. `terraform destroy` removes everything Terraform created.
+
+### Reset between the manual and automated runs (IMPORTANT)
+
+> **If you want to automate everything with Terraform + GitHub Actions (Step 6),
+> follow these cleanup steps first.** The manual path (Steps 2–5) creates ECR
+> repos, DynamoDB tables, an IAM policy, and a KMS alias that do NOT disappear
+> when you delete the cluster. Terraform recreates the same-named resources, so
+> leftovers cause "already exists" errors on `terraform apply`. Remove them for a
+> clean slate.
+
+```bash
+export AWS_REGION=us-east-1
+
+# 1) ECR repositories (created by push-to-ecr.sh)
+for r in frontend product-service inventory-service cart-service order-service payment-service auth-service; do
+  aws ecr delete-repository --repository-name cloudcart-$r --force --region "$AWS_REGION" 2>/dev/null || true
+done
+
+# 2) DynamoDB tables (created by create-dynamodb-tables.sh)
+for t in products inventory carts orders payments users; do
+  aws dynamodb delete-table --table-name cloudcart-$t --region "$AWS_REGION" 2>/dev/null || true
+done
+
+# 3) IAM policy (global) — the one create-dynamodb-tables.sh made
+ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"
+aws iam delete-policy --policy-arn "arn:aws:iam::${ACCOUNT_ID}:policy/CloudCartDynamoDBPolicy" 2>/dev/null || true
+
+# 4) KMS alias (if the manual run created one; the key itself deletes on a waiting period)
+aws kms delete-alias --alias-name alias/cloudcart --region "$AWS_REGION" 2>/dev/null || true
+
+# 5) Any leftover pod-identity CloudFormation stack from a failed association
+aws cloudformation delete-stack \
+  --stack-name eksctl-cloudcart-podidentityrole-cloudcart-cloudcart-dynamodb \
+  --region "$AWS_REGION" 2>/dev/null || true
+```
+
+If `delete-policy` reports the policy is attached, detach it from its role first (or it's fine to leave if you use a different name for the Terraform run). DynamoDB deletes are asynchronous — give them a minute and confirm with `aws dynamodb list-tables`.
+
+### Verify it's clean
+
+```bash
+aws ecr describe-repositories --region us-east-1 \
+  --query "repositories[?starts_with(repositoryName,'cloudcart')].repositoryName" --output table
+aws dynamodb list-tables --region us-east-1 \
+  --query "TableNames[?starts_with(@,'cloudcart')]" --output table
+aws kms list-aliases --region us-east-1 \
+  --query "Aliases[?AliasName=='alias/cloudcart'].AliasName" --output table
+```
+
+All three should return empty before you run the Terraform workflow. Also confirm the eksctl `cloudcart` cluster is fully deleted (`eksctl get cluster --region us-east-1`) so its name is free.
+
+### Stop the bastion (keep it for next time)
+
+Stopping (not terminating) keeps the instance, IAM role, and installed tools; you only pay for the EBS volume.
+
+```bash
+aws ec2 stop-instances --instance-ids <BASTION_INSTANCE_ID> --region us-east-1
 ```
 
 ---
