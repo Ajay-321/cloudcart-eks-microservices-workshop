@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720">
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L8,3 L0,6 Z" fill="#5b6472"/>
+    </marker>
+  </defs>
+
+  <!-- Slide background -->
+  <rect x="0" y="0" width="1280" height="720" fill="#ffffff"/>
+
+  <!-- Title bar -->
+  <rect x="0" y="0" width="1280" height="90" fill="#0f1b3d"/>
+  <text x="48" y="56" font-family="Arial" font-size="30" font-weight="bold" fill="#ffffff">From one container to many — why orchestration</text>
+  <text x="1232" y="54" font-family="Arial" font-size="16" fill="#9fb3d1" text-anchor="end">CloudCart Workshop</text>
+
+  <!-- Left: Docker Compose card -->
+  <rect x="60" y="180" width="380" height="320" rx="16" fill="#e8effd" stroke="#326ce5" stroke-width="2.5"/>
+  <text x="250" y="230" font-family="Arial" font-size="24" font-weight="bold" fill="#0f1b3d" text-anchor="middle">Docker Compose</text>
+  <text x="90" y="290" font-family="Arial" font-size="18" fill="#1a1a2e">• all 7 services in one file</text>
+  <text x="90" y="340" font-family="Arial" font-size="18" fill="#1a1a2e">• one command: docker compose up</text>
+  <text x="90" y="390" font-family="Arial" font-size="18" fill="#1a1a2e">• great on ONE machine</text>
+
+  <!-- Right: The problem at scale card -->
+  <rect x="840" y="180" width="380" height="360" rx="16" fill="#fff4e0" stroke="#e08e0b" stroke-width="2.5"/>
+  <text x="1030" y="230" font-family="Arial" font-size="24" font-weight="bold" fill="#0f1b3d" text-anchor="middle">The problem at scale</text>
+  <text x="870" y="290" font-family="Arial" font-size="18" fill="#1a1a2e">• Many machines, not one</text>
+  <text x="870" y="332" font-family="Arial" font-size="18" fill="#1a1a2e">• Auto-restart on crash</text>
+  <text x="870" y="374" font-family="Arial" font-size="18" fill="#1a1a2e">• Scale up/down on demand</text>
+  <text x="870" y="416" font-family="Arial" font-size="18" fill="#1a1a2e">• Zero-downtime updates</text>
+  <text x="870" y="458" font-family="Arial" font-size="18" fill="#1a1a2e">• Built-in load balancing</text>
+
+  <!-- Big arrow left to right -->
+  <line x1="450" y1="340" x2="826" y2="340" stroke="#5b6472" stroke-width="4" marker-end="url(#arrow)"/>
+  <text x="640" y="325" font-family="Arial" font-size="18" font-weight="bold" fill="#5b6472" text-anchor="middle">needs an orchestrator</text>
+
+  <!-- Caption -->
+  <text x="640" y="610" font-family="Arial" font-size="17" font-style="italic" fill="#5b6472" text-anchor="middle">Compose is the first step up. Production needs something that runs containers across many machines</text>
+  <text x="640" y="636" font-family="Arial" font-size="17" font-style="italic" fill="#5b6472" text-anchor="middle">and self-heals — Kubernetes.</text>
+
+  <!-- Footer -->
+  <line x1="48" y1="684" x2="1232" y2="684" stroke="#d9dee8" stroke-width="1"/>
+  <text x="48" y="706" font-family="Arial" font-size="13" fill="#6b7280">CloudCart — Kubernetes &amp; Amazon EKS Workshop</text>
+  <text x="1232" y="706" font-family="Arial" font-size="13" fill="#6b7280" text-anchor="end">3 / 8</text>
+</svg>

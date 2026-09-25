@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1480" height="820" viewBox="0 0 1480 820">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#1a1a2e"/>
+    </marker>
+  </defs>
+
+  <!-- Background -->
+  <rect x="0" y="0" width="1480" height="820" fill="#f7f8fc"/>
+
+  <!-- Title -->
+  <text x="740" y="60" font-family="Arial" font-size="30" font-weight="bold" fill="#1a1a2e" text-anchor="middle">CloudCart — 1. How the infrastructure is built (IaC + CI/CD)</text>
+
+  <!-- Step badge -->
+  <rect x="1270" y="30" width="170" height="44" rx="12" fill="#ffffff" stroke="#4056a1" stroke-width="2"/>
+  <text x="1355" y="59" font-family="Arial" font-size="18" font-weight="bold" fill="#4056a1" text-anchor="middle">Step 1 of 4</text>
+
+  <!-- Terraform (IaC) -->
+  <rect x="60" y="300" width="380" height="240" rx="20" fill="#e9efff" stroke="#4056a1" stroke-width="3"/>
+  <text x="250" y="352" font-family="Arial" font-size="24" font-weight="bold" fill="#4056a1" text-anchor="middle">Terraform (IaC)</text>
+  <text x="250" y="398" font-family="Arial" font-size="17" fill="#1a1a2e" text-anchor="middle">Declarative infra as code</text>
+  <text x="250" y="436" font-family="Arial" font-size="16" fill="#1a1a2e" text-anchor="middle">modules: vpc, eks, ecr,</text>
+  <text x="250" y="460" font-family="Arial" font-size="16" fill="#1a1a2e" text-anchor="middle">dynamodb, kms, pod-identity</text>
+  <text x="250" y="500" font-family="Arial" font-size="16" fill="#1a1a2e" text-anchor="middle">edit terraform.tfvars</text>
+
+  <!-- GitHub Actions (CI/CD) -->
+  <rect x="550" y="300" width="380" height="240" rx="20" fill="#efe9ff" stroke="#6a4c93" stroke-width="3"/>
+  <text x="740" y="352" font-family="Arial" font-size="24" font-weight="bold" fill="#6a4c93" text-anchor="middle">GitHub Actions (CI/CD)</text>
+  <text x="740" y="398" font-family="Arial" font-size="17" fill="#1a1a2e" text-anchor="middle">terraform plan on push</text>
+  <text x="740" y="436" font-family="Arial" font-size="17" fill="#1a1a2e" text-anchor="middle">terraform apply on main</text>
+  <text x="740" y="480" font-family="Arial" font-size="16" fill="#1a1a2e" text-anchor="middle">app pipeline: build → deploy → seed</text>
+
+  <!-- AWS Infrastructure -->
+  <rect x="1040" y="300" width="380" height="240" rx="20" fill="#fff4e0" stroke="#e08e0b" stroke-width="3"/>
+  <text x="1230" y="352" font-family="Arial" font-size="24" font-weight="bold" fill="#e08e0b" text-anchor="middle">AWS Infrastructure</text>
+  <text x="1230" y="380" font-family="Arial" font-size="18" font-weight="bold" fill="#e08e0b" text-anchor="middle">(us-east-1)</text>
+  <text x="1230" y="430" font-family="Arial" font-size="17" fill="#1a1a2e" text-anchor="middle">VPC • EKS • ECR</text>
+  <text x="1230" y="470" font-family="Arial" font-size="17" fill="#1a1a2e" text-anchor="middle">DynamoDB • KMS • Pod Identity</text>
+
+  <!-- Arrows -->
+  <line x1="440" y1="420" x2="548" y2="420" stroke="#1a1a2e" stroke-width="3" marker-end="url(#arrow)"/>
+  <line x1="930" y1="420" x2="1038" y2="420" stroke="#1a1a2e" stroke-width="3" marker-end="url(#arrow)"/>
+  <text x="494" y="405" font-family="Arial" font-size="15" fill="#1a1a2e" text-anchor="middle">runs</text>
+  <text x="984" y="405" font-family="Arial" font-size="15" fill="#1a1a2e" text-anchor="middle">provisions</text>
+
+  <!-- Caption -->
+  <text x="740" y="720" font-family="Arial" font-size="18" font-style="italic" fill="#1a1a2e" text-anchor="middle">Terraform provisions everything; GitHub Actions runs it automatically on every push.</text>
+</svg>

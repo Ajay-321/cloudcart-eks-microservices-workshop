@@ -1,0 +1,82 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1480" height="820" viewBox="0 0 1480 820">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#1a1a2e"/>
+    </marker>
+  </defs>
+
+  <!-- Background -->
+  <rect x="0" y="0" width="1480" height="820" fill="#f7f8fc"/>
+
+  <!-- Title -->
+  <text x="740" y="52" font-family="Arial" font-size="30" font-weight="bold" fill="#1a1a2e" text-anchor="middle">CloudCart — 3. How a user reaches the app</text>
+
+  <!-- Step badge -->
+  <rect x="1270" y="26" width="170" height="44" rx="12" fill="#ffffff" stroke="#4056a1" stroke-width="2"/>
+  <text x="1355" y="55" font-family="Arial" font-size="18" font-weight="bold" fill="#4056a1" text-anchor="middle">Step 3 of 4</text>
+
+  <!-- Browser -->
+  <rect x="50" y="150" width="290" height="140" rx="18" fill="#ffffff" stroke="#4056a1" stroke-width="3"/>
+  <text x="195" y="212" font-family="Arial" font-size="22" font-weight="bold" fill="#4056a1" text-anchor="middle">Browser (User)</text>
+  <text x="195" y="246" font-family="Arial" font-size="16" fill="#1a1a2e" text-anchor="middle">HTTPS request</text>
+
+  <!-- AWS Load Balancer -->
+  <rect x="410" y="150" width="290" height="140" rx="18" fill="#fff4e0" stroke="#e08e0b" stroke-width="3"/>
+  <text x="555" y="200" font-family="Arial" font-size="21" font-weight="bold" fill="#e08e0b" text-anchor="middle">AWS Load Balancer</text>
+  <text x="555" y="230" font-family="Arial" font-size="16" fill="#1a1a2e" text-anchor="middle">public DNS</text>
+  <text x="555" y="254" font-family="Arial" font-size="16" fill="#1a1a2e" text-anchor="middle">port 80</text>
+
+  <!-- Service: frontend -->
+  <rect x="770" y="150" width="290" height="140" rx="18" fill="#eef8ef" stroke="#4b8c5a" stroke-width="3"/>
+  <text x="915" y="200" font-family="Arial" font-size="21" font-weight="bold" fill="#4b8c5a" text-anchor="middle">Service: frontend</text>
+  <text x="915" y="230" font-family="Arial" font-size="16" fill="#1a1a2e" text-anchor="middle">type LoadBalancer</text>
+  <text x="915" y="254" font-family="Arial" font-size="16" fill="#1a1a2e" text-anchor="middle">port 80 → targetPort 3000</text>
+
+  <!-- frontend Pods -->
+  <rect x="1130" y="150" width="290" height="140" rx="18" fill="#eef8ef" stroke="#4b8c5a" stroke-width="3"/>
+  <text x="1275" y="212" font-family="Arial" font-size="22" font-weight="bold" fill="#4b8c5a" text-anchor="middle">frontend Pods</text>
+  <text x="1275" y="246" font-family="Arial" font-size="16" fill="#1a1a2e" text-anchor="middle">serve the UI</text>
+
+  <!-- Top row arrows -->
+  <line x1="340" y1="220" x2="408" y2="220" stroke="#1a1a2e" stroke-width="3" marker-end="url(#arrow)"/>
+  <line x1="700" y1="220" x2="768" y2="220" stroke="#1a1a2e" stroke-width="3" marker-end="url(#arrow)"/>
+  <line x1="1060" y1="220" x2="1128" y2="220" stroke="#1a1a2e" stroke-width="3" marker-end="url(#arrow)"/>
+
+  <!-- fan-out /api arrow from frontend Pods down to backend group -->
+  <line x1="1275" y1="290" x2="820" y2="410" stroke="#1a1a2e" stroke-width="3" marker-end="url(#arrow)"/>
+  <text x="1080" y="335" font-family="Arial" font-size="18" font-weight="bold" fill="#1a1a2e" text-anchor="middle">/api</text>
+
+  <!-- Backend Services group -->
+  <rect x="130" y="420" width="1220" height="290" rx="20" fill="#ffffff" stroke="#4b8c5a" stroke-width="3"/>
+  <text x="740" y="460" font-family="Arial" font-size="24" font-weight="bold" fill="#4b8c5a" text-anchor="middle">Backend Services (ClusterIP)</text>
+
+  <!-- backend cards row -->
+  <rect x="170" y="490" width="180" height="70" rx="12" fill="#eef8ef" stroke="#4b8c5a" stroke-width="2"/>
+  <text x="260" y="533" font-family="Arial" font-size="18" font-weight="bold" fill="#4b8c5a" text-anchor="middle">product</text>
+
+  <rect x="370" y="490" width="180" height="70" rx="12" fill="#eef8ef" stroke="#4b8c5a" stroke-width="2"/>
+  <text x="460" y="533" font-family="Arial" font-size="18" font-weight="bold" fill="#4b8c5a" text-anchor="middle">inventory</text>
+
+  <rect x="570" y="490" width="180" height="70" rx="12" fill="#eef8ef" stroke="#4b8c5a" stroke-width="2"/>
+  <text x="660" y="533" font-family="Arial" font-size="18" font-weight="bold" fill="#4b8c5a" text-anchor="middle">cart</text>
+
+  <rect x="770" y="490" width="180" height="70" rx="12" fill="#eef8ef" stroke="#4b8c5a" stroke-width="2"/>
+  <text x="860" y="533" font-family="Arial" font-size="18" font-weight="bold" fill="#4b8c5a" text-anchor="middle">order</text>
+
+  <rect x="970" y="490" width="180" height="70" rx="12" fill="#eef8ef" stroke="#4b8c5a" stroke-width="2"/>
+  <text x="1060" y="533" font-family="Arial" font-size="18" font-weight="bold" fill="#4b8c5a" text-anchor="middle">payment</text>
+
+  <rect x="1170" y="490" width="150" height="70" rx="12" fill="#eef8ef" stroke="#4b8c5a" stroke-width="2"/>
+  <text x="1245" y="533" font-family="Arial" font-size="18" font-weight="bold" fill="#4b8c5a" text-anchor="middle">auth</text>
+
+  <!-- order -> inventory (reserve) -->
+  <line x1="770" y1="600" x2="550" y2="600" stroke="#1a1a2e" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="660" y="592" font-family="Arial" font-size="15" fill="#1a1a2e" text-anchor="middle">order → inventory (reserve)</text>
+
+  <!-- order -> payment (charge) -->
+  <line x1="950" y1="620" x2="1060" y2="620" stroke="#1a1a2e" stroke-width="2" marker-end="url(#arrow)"/>
+  <text x="1000" y="655" font-family="Arial" font-size="15" fill="#1a1a2e" text-anchor="middle">order → payment (charge)</text>
+
+  <!-- Caption -->
+  <text x="740" y="760" font-family="Arial" font-size="18" font-style="italic" fill="#1a1a2e" text-anchor="middle">Only the frontend is public (LoadBalancer). Backends are internal (ClusterIP) — the frontend proxies /api to them.</text>
+</svg>

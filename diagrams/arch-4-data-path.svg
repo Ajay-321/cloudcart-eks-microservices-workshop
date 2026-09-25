@@ -1,0 +1,64 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1480" height="820" viewBox="0 0 1480 820">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#1a1a2e"/>
+    </marker>
+  </defs>
+
+  <!-- Background -->
+  <rect x="0" y="0" width="1480" height="820" fill="#f7f8fc"/>
+
+  <!-- Title -->
+  <text x="740" y="52" font-family="Arial" font-size="30" font-weight="bold" fill="#1a1a2e" text-anchor="middle">CloudCart — 4. Images &amp; data (ECR + DynamoDB via Pod Identity)</text>
+
+  <!-- Step badge -->
+  <rect x="1270" y="26" width="170" height="44" rx="12" fill="#ffffff" stroke="#e08e0b" stroke-width="2"/>
+  <text x="1355" y="55" font-family="Arial" font-size="18" font-weight="bold" fill="#e08e0b" text-anchor="middle">Step 4 of 4</text>
+
+  <!-- Amazon ECR (left) -->
+  <rect x="60" y="300" width="330" height="150" rx="18" fill="#fff4e0" stroke="#e08e0b" stroke-width="3"/>
+  <text x="225" y="360" font-family="Arial" font-size="22" font-weight="bold" fill="#e08e0b" text-anchor="middle">Amazon ECR</text>
+  <text x="225" y="398" font-family="Arial" font-size="16" fill="#1a1a2e" text-anchor="middle">cloudcart-* images</text>
+
+  <!-- Backend Pods (center) -->
+  <rect x="540" y="280" width="400" height="200" rx="20" fill="#eef8ef" stroke="#4b8c5a" stroke-width="3"/>
+  <text x="740" y="360" font-family="Arial" font-size="24" font-weight="bold" fill="#4b8c5a" text-anchor="middle">Backend Pods</text>
+  <text x="740" y="400" font-family="Arial" font-size="17" fill="#1a1a2e" text-anchor="middle">namespace: cloudcart</text>
+
+  <!-- Amazon DynamoDB (right) -->
+  <rect x="1050" y="270" width="370" height="220" rx="18" fill="#fff4e0" stroke="#e08e0b" stroke-width="3"/>
+  <text x="1235" y="320" font-family="Arial" font-size="22" font-weight="bold" fill="#e08e0b" text-anchor="middle">Amazon DynamoDB</text>
+  <text x="1235" y="356" font-family="Arial" font-size="16" fill="#1a1a2e" text-anchor="middle">6 tables:</text>
+  <text x="1235" y="382" font-family="Arial" font-size="16" fill="#1a1a2e" text-anchor="middle">products, inventory, carts,</text>
+  <text x="1235" y="406" font-family="Arial" font-size="16" fill="#1a1a2e" text-anchor="middle">orders, payments, users</text>
+
+  <!-- ECR -> pods (pull images) -->
+  <line x1="390" y1="375" x2="538" y2="375" stroke="#1a1a2e" stroke-width="3" marker-end="url(#arrow)"/>
+  <text x="464" y="360" font-family="Arial" font-size="16" font-weight="bold" fill="#1a1a2e" text-anchor="middle">pull images</text>
+
+  <!-- pods -> DynamoDB (read/write via Pod Identity) -->
+  <line x1="940" y1="360" x2="1048" y2="360" stroke="#1a1a2e" stroke-width="3" marker-end="url(#arrow)"/>
+  <text x="994" y="340" font-family="Arial" font-size="15" font-weight="bold" fill="#1a1a2e" text-anchor="middle">read/write via</text>
+  <text x="994" y="358" font-family="Arial" font-size="15" font-weight="bold" fill="#1a1a2e" text-anchor="middle">EKS Pod Identity</text>
+
+  <!-- EKS Pod Identity badge on the arrow -->
+  <rect x="820" y="520" width="340" height="120" rx="16" fill="#ffffff" stroke="#4056a1" stroke-width="3"/>
+  <text x="990" y="562" font-family="Arial" font-size="20" font-weight="bold" fill="#4056a1" text-anchor="middle">EKS Pod Identity</text>
+  <text x="990" y="596" font-family="Arial" font-size="15" fill="#1a1a2e" text-anchor="middle">scoped IAM role</text>
+  <text x="990" y="620" font-family="Arial" font-size="15" fill="#1a1a2e" text-anchor="middle">NO access keys in Kubernetes</text>
+
+  <!-- link from pods area to Pod Identity badge -->
+  <line x1="990" y1="480" x2="990" y2="518" stroke="#1a1a2e" stroke-width="2" marker-end="url(#arrow)"/>
+
+  <!-- AWS KMS near DynamoDB -->
+  <rect x="1080" y="560" width="310" height="120" rx="16" fill="#fff4e0" stroke="#e08e0b" stroke-width="3"/>
+  <text x="1235" y="608" font-family="Arial" font-size="22" font-weight="bold" fill="#e08e0b" text-anchor="middle">AWS KMS</text>
+  <text x="1235" y="642" font-family="Arial" font-size="16" fill="#1a1a2e" text-anchor="middle">encryption keys</text>
+
+  <!-- KMS -> DynamoDB (encrypts tables) -->
+  <line x1="1235" y1="558" x2="1235" y2="492" stroke="#1a1a2e" stroke-width="3" marker-end="url(#arrow)"/>
+  <text x="1330" y="530" font-family="Arial" font-size="15" font-weight="bold" fill="#1a1a2e" text-anchor="middle">encrypts tables</text>
+
+  <!-- Caption -->
+  <text x="740" y="750" font-family="Arial" font-size="18" font-style="italic" fill="#1a1a2e" text-anchor="middle">Pods pull images from ECR and reach DynamoDB with a scoped IAM role via Pod Identity — no static keys stored in the cluster.</text>
+</svg>

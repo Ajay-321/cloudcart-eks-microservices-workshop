@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720">
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L8,3 L0,6 Z" fill="#5b6472"/>
+    </marker>
+  </defs>
+
+  <!-- Slide background -->
+  <rect x="0" y="0" width="1280" height="720" fill="#ffffff"/>
+
+  <!-- Title bar -->
+  <rect x="0" y="0" width="1280" height="90" fill="#0f1b3d"/>
+  <text x="48" y="56" font-family="Arial" font-size="30" font-weight="bold" fill="#ffffff">Containers &amp; Docker — the building block</text>
+  <text x="1232" y="54" font-family="Arial" font-size="16" fill="#9fb3d1" text-anchor="end">CloudCart Workshop</text>
+
+  <!-- Left column: bullets -->
+  <text x="48" y="170" font-family="Arial" font-size="22" font-weight="bold" fill="#0f1b3d">Why containers?</text>
+  <text x="48" y="220" font-family="Arial" font-size="18" fill="#1a1a2e">• One image = app + all its dependencies (portable).</text>
+  <text x="48" y="262" font-family="Arial" font-size="18" fill="#1a1a2e">• Same image runs on a laptop, a server, or AWS.</text>
+  <text x="48" y="304" font-family="Arial" font-size="18" fill="#1a1a2e">• Lightweight — shares the host OS kernel; starts in seconds.</text>
+  <text x="48" y="346" font-family="Arial" font-size="18" fill="#1a1a2e">• Each CloudCart service has its own Dockerfile.</text>
+
+  <!-- Right column: flow of boxes -->
+  <!-- Dockerfile -->
+  <rect x="760" y="150" width="200" height="70" rx="14" fill="#ffffff" stroke="#c7ced9" stroke-width="2.5"/>
+  <text x="860" y="192" font-family="Arial" font-size="18" font-weight="bold" fill="#1a1a2e" text-anchor="middle">Dockerfile</text>
+
+  <!-- Image -->
+  <rect x="760" y="290" width="200" height="70" rx="14" fill="#e8effd" stroke="#326ce5" stroke-width="2.5"/>
+  <text x="860" y="332" font-family="Arial" font-size="18" font-weight="bold" fill="#1a1a2e" text-anchor="middle">Image</text>
+
+  <!-- Container (running) -->
+  <rect x="760" y="430" width="200" height="70" rx="14" fill="#eef8ef" stroke="#4b8c5a" stroke-width="2.5"/>
+  <text x="860" y="466" font-family="Arial" font-size="17" font-weight="bold" fill="#1a1a2e" text-anchor="middle">Container</text>
+  <text x="860" y="486" font-family="Arial" font-size="13" fill="#5b6472" text-anchor="middle">(running)</text>
+
+  <!-- Amazon ECR (registry) -->
+  <rect x="1040" y="290" width="190" height="70" rx="14" fill="#fff4e0" stroke="#e08e0b" stroke-width="2.5"/>
+  <text x="1135" y="326" font-family="Arial" font-size="16" font-weight="bold" fill="#1a1a2e" text-anchor="middle">Amazon ECR</text>
+  <text x="1135" y="346" font-family="Arial" font-size="13" fill="#5b6472" text-anchor="middle">(registry)</text>
+
+  <!-- Arrows -->
+  <line x1="860" y1="220" x2="860" y2="286" stroke="#5b6472" stroke-width="2.5" marker-end="url(#arrow)"/>
+  <text x="875" y="258" font-family="Arial" font-size="15" fill="#5b6472">build</text>
+
+  <line x1="860" y1="360" x2="860" y2="426" stroke="#5b6472" stroke-width="2.5" marker-end="url(#arrow)"/>
+  <text x="875" y="398" font-family="Arial" font-size="15" fill="#5b6472">run</text>
+
+  <line x1="960" y1="325" x2="1036" y2="325" stroke="#5b6472" stroke-width="2.5" marker-end="url(#arrow)"/>
+  <text x="972" y="315" font-family="Arial" font-size="15" fill="#5b6472">push</text>
+
+  <!-- Bottom caption -->
+  <text x="640" y="620" font-family="Arial" font-size="18" font-style="italic" fill="#5b6472" text-anchor="middle">Build once, run anywhere — the same image we build here later runs on EKS unchanged.</text>
+
+  <!-- Footer -->
+  <line x1="48" y1="684" x2="1232" y2="684" stroke="#d9dee8" stroke-width="1"/>
+  <text x="48" y="706" font-family="Arial" font-size="13" fill="#6b7280">CloudCart — Kubernetes &amp; Amazon EKS Workshop</text>
+  <text x="1232" y="706" font-family="Arial" font-size="13" fill="#6b7280" text-anchor="end">2 / 8</text>
+</svg>

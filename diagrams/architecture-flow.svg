@@ -84,8 +84,8 @@
   <!-- Amazon DynamoDB -->
   <rect x="1140" y="436" width="290" height="106" rx="16" fill="#ffffff" stroke="#e08e0b" stroke-width="2"/>
   <text x="1285" y="464" font-family="Arial" font-size="18" font-weight="bold" fill="#e08e0b" text-anchor="middle">Amazon DynamoDB</text>
-  <text x="1285" y="490" font-family="Arial" font-size="13" fill="#1a1a2e" text-anchor="middle">5 tables: products, inventory,</text>
-  <text x="1285" y="508" font-family="Arial" font-size="13" fill="#1a1a2e" text-anchor="middle">carts, orders, users/payments</text>
+  <text x="1285" y="490" font-family="Arial" font-size="13" fill="#1a1a2e" text-anchor="middle">6 tables: products, inventory, carts,</text>
+  <text x="1285" y="508" font-family="Arial" font-size="13" fill="#1a1a2e" text-anchor="middle">orders, payments, users</text>
 
   <!-- AWS KMS -->
   <rect x="1140" y="556" width="290" height="80" rx="16" fill="#ffffff" stroke="#e08e0b" stroke-width="2"/>
@@ -114,7 +114,7 @@
   <!-- Managed Node Group header card -->
   <rect x="726" y="410" width="360" height="60" rx="14" fill="#ffffff" stroke="#4b8c5a" stroke-width="2"/>
   <text x="906" y="432" font-family="Arial" font-size="15" font-weight="bold" fill="#4b8c5a" text-anchor="middle">Managed Node Group</text>
-  <text x="906" y="454" font-family="Arial" font-size="12" fill="#1a1a2e" text-anchor="middle">t3.medium • 2–4 nodes • Kubernetes v1.31</text>
+  <text x="906" y="454" font-family="Arial" font-size="12" fill="#1a1a2e" text-anchor="middle">t3.medium • min 1 / desired 2 / max 4 • Kubernetes v1.36</text>
 
   <!-- namespace: cloudcart region -->
   <rect x="338" y="484" width="748" height="248" rx="16" fill="#ffffff" stroke="#4b8c5a" stroke-width="2" stroke-dasharray="6 5"/>

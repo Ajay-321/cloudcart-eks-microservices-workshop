@@ -1,24 +1,17 @@
 # CloudCart — Kubernetes & Amazon EKS Workshop
 
-This repository is a hands-on demo that shows how to build and deploy a real
-microservices application on **Amazon EKS** (managed Kubernetes). CloudCart is a
-small e-commerce store composed of **seven microservices (one `frontend` + six
-backend services)** that are containerized with Docker, published to Amazon ECR,
-and run on an EKS cluster — exposed to the internet through a Kubernetes
-LoadBalancer Service (an AWS ELB), with optional persistence in Amazon DynamoDB.
-It's meant as a learning/workshop reference you can follow end to end: run it
-locally first, see how the pieces talk, then move the **same containers** to AWS.
+This repository is a hands-on demo that shows how to build and deploy a real microservices application on **Amazon EKS** (managed Kubernetes). CloudCart is a small e-commerce store composed of **seven microservices (one `frontend` + six backend services)** that are containerized with Docker, published to Amazon ECR, and run on an EKS cluster — exposed to the internet through a Kubernetes LoadBalancer Service (an AWS ELB), with optional persistence in Amazon DynamoDB. It's meant as a learning/workshop reference you can follow end to end: start on your laptop with Docker, then move the same containers to AWS.
 
 > **Docker on your laptop → Amazon ECR → Amazon EKS → LoadBalancer → DynamoDB**
 
 ### What you'll learn
 
-- Containerizing a set of microservices with Docker and running them together via Docker Compose
+- Containerizing microservices with Docker and running them together with Docker Compose
 - Publishing images to a private registry (Amazon ECR)
-- Standing up a managed Kubernetes cluster with Amazon EKS (via eksctl or Terraform)
-- Deploying microservices as Kubernetes Deployments + Services, and exposing the app with a LoadBalancer
-- Adding managed persistence with Amazon DynamoDB, accessed securely via EKS Pod Identity (no static keys)
-- Automating the whole infrastructure with Terraform and a GitHub Actions CI/CD pipeline
+- Standing up a managed Kubernetes cluster with Amazon EKS
+- Deploying microservices as Kubernetes Deployments + Services, exposed via a LoadBalancer
+- Adding managed persistence with Amazon DynamoDB via EKS Pod Identity (no static keys)
+- Automating the whole thing with Terraform + GitHub Actions CI/CD
 
 ### Architecture at a glance
 
@@ -27,623 +20,77 @@ browser ──▶ frontend ──▶ product / inventory / cart / order / paymen
                                      order ──▶ inventory + payment
 ```
 
-The `frontend` is the only public entry point (LoadBalancer); it proxies
-`/api/*` calls to the six backend services, which talk to each other over the
-cluster's internal network (ClusterIP) — the same service-discovery model
-Docker Compose uses locally.
-
-See the full end-to-end architecture (Terraform → GitHub Actions → EKS →
-microservices → LoadBalancer → UI) in
-[`diagrams/architecture-flow.svg`](./diagrams/architecture-flow.svg).
-
-### Who is this for
-
-Developers and DevOps learners who want a concrete, runnable example of the
-container → registry → Kubernetes → load balancer → (optional) database flow on
-AWS.
+The `frontend` is the only public entry point (a Kubernetes LoadBalancer Service). It proxies `/api/*` to the six backend services, which are ClusterIP-only and talk to each other over the cluster's internal network — the same service-discovery model Docker Compose uses locally. See the full end-to-end diagram in [`diagrams/architecture-flow.svg`](./diagrams/architecture-flow.svg).
 
 ---
 
-## Two ways through this workshop
+## How this workshop is structured
 
-- **Manual, step by step (recommended for learning)** — Steps 1–5: run locally
-  with Docker → push images to ECR → create the cluster with eksctl → deploy the
-  app WITHOUT DynamoDB (Demo A) → deploy WITH DynamoDB + Pod Identity (Demo B).
-  You run a few small scripts; nothing to edit.
-- **Automated with Terraform + GitHub Actions** — Step 6: Terraform provisions
-  all infrastructure (VPC + EKS + ECR + DynamoDB + KMS + Pod Identity). Here you
-  edit just one file, `environments/dev/us-east-1/terraform.tfvars` (region,
-  cluster name, node sizes, tags), and for CI you add two repo secrets
-  `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`. You still deploy the app with
-  the Step 4/5 manifests afterward.
+There are two paths through this workshop, and they build on each other.
 
-New here? Follow Steps 1–5 in order. Want repeatable infra? Jump to Step 6.
+- **Manual path (great for learning / first-time)** — test the app locally with Docker on your laptop, then do everything on an **EC2 bastion server**: create the EKS cluster, deploy the microservices **without DynamoDB** (in-memory) to see the whole app on a real cluster fast, then redeploy **with DynamoDB** for real persistence. You touch every piece by hand so you understand what each one does.
+- **Automated path (real life)** — once you understand the pieces, automate all of it with **Terraform** (infrastructure as code) plus a **GitHub Actions CI/CD pipeline** that builds, deploys, and seeds the app on every push.
+
+New here? Do the manual steps first to understand each piece. In real projects, automate it (last section).
 
 ---
 
 ## Contents
 
-- [The app](#the-app)
 - [Prerequisites](#prerequisites)
-- [Step 1 — Run locally with Docker](#step-1--run-locally-with-docker)
-- [Step 2 — Push images to Amazon ECR](#step-2--push-images-to-amazon-ecr)
-- [Step 3 — Create the EKS cluster](#step-3--create-the-eks-cluster)
-- [Step 4 — Demo A: Deploy WITHOUT DynamoDB (in-memory)](#step-4--demo-a-deploy-without-dynamodb-in-memory)
-- [Step 5 — Demo B: Deploy WITH DynamoDB (persistence + Pod Identity)](#step-5--demo-b-deploy-with-dynamodb-persistence--pod-identity)
-- [Step 6 — Automate everything: Terraform + GitHub Actions (CI/CD)](#step-6--automate-everything-terraform--github-actions-cicd)
-- [Cleanup (avoid charges)](#cleanup-avoid-charges)
 - [Repository structure](#repository-structure)
+- [The app](#the-app)
+- [Bastion server setup (EC2)](#bastion-server-setup-ec2)
+- [Step 1 — Clone the repo](#step-1--clone-the-repo)
+- [Step 2 — Run locally with Docker](#step-2--run-locally-with-docker)
+- [Step 3 — Push images to Amazon ECR](#step-3--push-images-to-amazon-ecr)
+- [Step 4 — Create the EKS cluster](#step-4--create-the-eks-cluster)
+- [Step 5 — Deploy on EKS WITHOUT DynamoDB (in-memory)](#step-5--deploy-on-eks-without-dynamodb-in-memory)
+- [Step 6 — Deploy on EKS WITH DynamoDB (persistence + Pod Identity)](#step-6--deploy-on-eks-with-dynamodb-persistence--pod-identity)
+- [Automate everything: Terraform + GitHub Actions (CI/CD)](#automate-everything-terraform--github-actions-cicd)
 - [Terraform, in short](#terraform-in-short)
-- [Bastion server setup (optional)](#bastion-server-setup-optional)
-
----
-
-## The app
-
-```
-browser ──▶ frontend ──▶ product / inventory / cart / order / payment / auth
-                                     order ──▶ inventory + payment
-```
-
-The frontend is a small multi-page storefront, all served on different paths
-by the same `frontend` service:
-
-| Path | Page |
-|------|------|
-| `/` | Home — a live architecture strip (each service pinged in your browser), search + category filters, sort, wishlist, a quick-view modal, cart drawer, and a checkout flow that visualizes the cart → inventory → payment → confirmed call sequence in real time |
-| `/login` | Log in (JWT issued by `auth-service`), with a show/hide password toggle |
-| `/signup` | Create an account, with a live password-strength meter |
-| `/dashboard` | Protected — animated KPI cards, a live cluster-health panel that pings all six services with response times, interactive charts (revenue, inventory, category mix), a top-products leaderboard, and a recent-orders table, all auto-refreshing |
-
-Every page shares one light/dark theme toggle (top right) — dark mode leans into
-a "control room" look that suits the dashboard especially well. All of this is
-plain HTML/CSS/JS with zero build step, so editing `frontend/public/*` and
-refreshing the browser is all it takes to see a change.
-
-| Service | Job |
-|---------|-----|
-| `frontend` | Web UI (4 pages) + proxies `/api/*` to the backends |
-| `product-service` | Product catalogue (24 products across 8 categories) |
-| `inventory-service` | Stock levels |
-| `cart-service` | Shopping cart |
-| `order-service` | Places orders (calls inventory + payment) |
-| `payment-service` | Mock payment |
-| `auth-service` | Signup / login, issues JWTs, bcrypt-hashed passwords |
-
-Tiny Node.js/Express apps. They start in **in-memory mode**
-(`USE_DYNAMODB=false`), so you need **no AWS account** to run them locally.
+- [Cleanup (avoid charges)](#cleanup-avoid-charges)
 
 ---
 
 ## Prerequisites
 
-Before starting the workshop you need an AWS account and a set of CLI tools.
-You can run everything two ways: **(a)** on your own laptop, or **(b)** on the
-bastion server described later in this README (see Bastion server setup), which
-comes with all tools pre-installed via userdata.
+You need an AWS account and a few CLI tools. The easiest path for this workshop is the **bastion EC2 server** (a section below) — it comes with every tool pre-installed, so you don't install anything on your laptop.
 
 ### Accounts & access
-- An **AWS account**.
-- An **IAM admin user** (not root — see below).
-- **AWS CLI v2** configured (`aws configure`, region `us-east-1`).
-- Verify with `aws sts get-caller-identity`.
 
-### Local tools (if running from your laptop)
+- AWS account
+- IAM admin user (not root)
+- AWS CLI v2 configured (`aws configure`, region `us-east-1`)
+- Verify with `aws sts get-caller-identity`
 
-| Tool | Version |
+### Local tools (pre-installed on the bastion)
+
+| Tool | Purpose |
 |------|---------|
-| Docker | Docker Desktop, or Colima on macOS |
-| AWS CLI | v2 |
-| kubectl | latest stable |
-| eksctl | latest |
-| Terraform | ≥ 1.5 |
-| git | latest |
+| Docker | Build and run containers |
+| AWS CLI v2 | Talk to AWS |
+| kubectl | Control Kubernetes |
+| eksctl | Create/manage EKS clusters |
+| Terraform ≥ 1.5 | Infrastructure as code |
+| git | Clone this repo |
 
-On the bastion these are all preinstalled.
+> **Note:** On the bastion these are all installed automatically by its user-data script.
 
 ### AWS resources to create once
-- The **S3 state bucket** for Terraform remote state — created once before
-  `terraform init` (see the command already in this README).
-- *(optional)* The **bastion server**, for a private-cluster / clean-environment
-  workflow (see Bastion server setup).
 
-### Credentials rule (important)
-**Do not use the AWS root account for daily work.** Create an IAM admin user once:
+- An RSA PEM key pair for SSH (bastion)
+- An IAM role + instance profile for the bastion
+- An S3 bucket for Terraform remote state (automated path only)
 
-1. Root → **IAM → Users → create** an admin user (e.g. `cloudcart-admin`), attach **AdministratorAccess**, enable **MFA**.
-2. Create an **access key** for that user.
-3. `aws configure` → paste the key, region `us-east-1`.
-4. Check: `aws sts get-caller-identity` shows the IAM user (not root).
+### Credentials rule
 
----
+Do **not** use the root account. Instead:
 
-## Step 1 — Run locally with Docker
-
-```bash
-docker compose up --build      # build + start all seven services
-# open http://localhost:8080
-docker compose ps              # clean names: frontend, cart-service, ...
-docker compose down
-```
-
-**Why this matters:** Compose gives each service a DNS name (e.g.
-`http://inventory-service:3000`). **Kubernetes works the same way** — that's the
-bridge to the next steps.
-
-> **Optional — local Kubernetes:** to run the same containers on kind/minikube
-> before touching AWS, apply `k8s/namespace.yaml` then `k8s/local/` (in-memory,
-> `USE_DYNAMODB=false`). See `DEPLOYMENT-GUIDE.md` for the kind/minikube walkthrough.
-
----
-
-## Step 2 — Push images to Amazon ECR
-
-ECR is your private Docker registry on AWS; EKS pulls the images from here. Do it by hand once to see the moving parts, then use the script to automate all seven.
-
-### Option 1 — Manual (understand the steps)
-
-```bash
-export AWS_REGION=us-east-1
-export AWS_ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"
-export ECR="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
-
-# 1) Log Docker in to your private ECR registry (token valid ~12h)
-aws ecr get-login-password --region "$AWS_REGION" \
-  | docker login --username AWS --password-stdin "$ECR"
-
-# 2) Create the repository (one per image). Ignore the error if it already exists.
-aws ecr create-repository --repository-name cloudcart-product-service --region "$AWS_REGION" || true
-
-# 3) Build the image from the service's Dockerfile
-docker build -t cloudcart-product-service:1.0 ./services/product-service
-
-# 4) Tag it for your ECR registry
-docker tag cloudcart-product-service:1.0 "$ECR/cloudcart-product-service:1.0"
-
-# 5) Push it
-docker push "$ECR/cloudcart-product-service:1.0"
-```
-
-> Repeat steps 2–5 for the other six images (`frontend`, `inventory-service`, `cart-service`, `order-service`, `payment-service`, `auth-service`). The build path is `./frontend` for the frontend and `./services/<name>` for the backends. Doing all seven by hand is repetitive — which is exactly why the script exists.
-
-### Option 2 — Automate with the script
-
-```bash
-export AWS_REGION=us-east-1
-./scripts/push-to-ecr.sh       # logs in, creates repos if missing, builds + pushes all seven
-```
-
-The script does exactly the steps above (login → create repo if missing → build → tag → push) for all seven images, discovering your account id automatically.
-
-> **Bastion/role permissions:** pushing needs ECR access. Attach
-> `AmazonEC2ContainerRegistryFullAccess` to the instance role (it includes
-> `ecr:GetAuthorizationToken`, push/pull, AND `ecr:CreateRepository` which the
-> script uses to create the `cloudcart-*` repos). `AmazonEC2ContainerRegistryPowerUser`
-> alone is NOT enough — it lacks `CreateRepository`.
-
----
-
-## Step 3 — Create the EKS cluster
-
-Create the cluster from the CLI — run this from your laptop or from the **bastion server** (see [Bastion server setup](#bastion-server-setup-optional)), both have `eksctl` installed.
-
-```bash
-eksctl create cluster \
-  --name cloudcart --region us-east-1 --version 1.31 \
-  --managed --node-type t3.medium \
-  --nodes 1 --nodes-min 1 --nodes-max 2 --with-oidc
-```
-This uses a small 1-node group (min 1, max 2) to keep demo cost low. You can scale it up if pods don't fit — see the note below.
-
-Takes ~15–20 min and configures `kubectl` for you.
-
-> Tip: use the **AWS Console only to *view*** the cluster (nodes, node group).
-> Creating clusters through the console wizard live is slow and error-prone.
-
-Once the cluster is created you point `kubectl` at it with `aws eks update-kubeconfig`. eksctl usually does this automatically, but run it manually if you're on a different machine (e.g. the bastion) or your kubeconfig isn't set.
-
-```bash
-# Point kubectl at the cluster (this workshop's values)
-aws eks update-kubeconfig --region us-east-1 --name cloudcart
-```
-
-```bash
-# Generic form — substitute your own region and cluster name
-aws eks update-kubeconfig --region <REGION> --name <CLUSTER_NAME>
-```
-
-Then `kubectl get nodes` to confirm the nodes are Ready. Next, pick a demo below.
-
-### If pods stay Pending (not enough nodes)
-
-A single `t3.medium` has limited CPU/memory and a capped number of pods it can run. When you deploy all services (each with its own replicas), some pods may sit in `Pending` with a "too many pods" or "Insufficient cpu/memory" event.
-
-Check what's happening:
-
-```bash
-kubectl get pods -n cloudcart
-kubectl describe pod <POD_NAME> -n cloudcart   # look at Events for the reason
-```
-
-Fix it by scaling the managed node group with the CLI — no need to recreate the cluster. First find the node group name, then scale:
-
-```bash
-# Find the node group name
-eksctl get nodegroup --cluster cloudcart --region us-east-1
-
-# Scale it up (e.g. to 2 nodes; must be within min/max)
-eksctl scale nodegroup \
-  --cluster cloudcart --region us-east-1 \
-  --name <NODEGROUP_NAME> \
-  --nodes 2 --nodes-min 1 --nodes-max 2
-```
-
-Generic form:
-
-```bash
-eksctl scale nodegroup --cluster <CLUSTER_NAME> --region <REGION> \
-  --name <NODEGROUP_NAME> --nodes <DESIRED> --nodes-min <MIN> --nodes-max <MAX>
-```
-
-> `<DESIRED>` must be ≤ the node group's max. To go higher than the current max,
-> raise `--nodes-max` in the same command. After the new node joins
-> (`kubectl get nodes`), the Pending pods schedule automatically.
-
-Alternatively, scale it in one line with the AWS CLI:
-
-```bash
-aws eks update-nodegroup-config --cluster-name cloudcart \
-  --nodegroup-name <NODEGROUP_NAME> \
-  --scaling-config minSize=1,maxSize=2,desiredSize=2 --region us-east-1
-```
-
----
-
-## Step 4 — Demo A: Deploy WITHOUT DynamoDB (in-memory)
-
-The fastest way to show the whole app on a real cluster. Backends use
-in-memory/seed data (`USE_DYNAMODB=false`) — no tables, no IAM, no Pod Identity.
-Only the frontend is exposed, via a LoadBalancer ELB.
-
-```bash
-export AWS_REGION=us-east-1
-
-# Render <ACCOUNT_ID>/<REGION> into the no-DynamoDB manifests
-./scripts/render-aws-nodynamo-manifests.sh
-
-# Deploy
-kubectl apply -f k8s/namespace.yaml
-kubectl apply -f k8s/aws-nodynamo/
-kubectl get pods -n cloudcart -w
-```
-
-Then expose/open:
-```bash
-kubectl get svc frontend -n cloudcart
-# wait for EXTERNAL-IP to become an ELB hostname, then open http://<EXTERNAL-IP>
-```
-
-> This reuses the **same images** pushed in Step 2. Only the frontend gets a
-> public ELB — the backends stay internal (`ClusterIP`).
-
-> **Open the LoadBalancer's security group:** the `frontend` Service is
-> `type: LoadBalancer`, so EKS provisions an AWS load balancer (`port: 80` →
-> `targetPort: 3000`). To reach the app from a browser, its security group must
-> allow inbound **TCP 80** (HTTP). Add **TCP 443** as well if you later put
-> HTTPS/TLS in front of it. If you changed the Service to publish on 8080, allow
-> **TCP 8080** instead. For a demo you can allow these from your IP (or
-> `0.0.0.0/0`); scope them down for anything real. Find the load balancer's
-> security group in the EC2 console (Load Balancers → your ELB → Security), or
-> note that on a Classic ELB (the EKS default here) the SG is created
-> automatically — just add the inbound rule to it.
-
-**Reset before the DynamoDB demo:** `kubectl delete -f k8s/aws-nodynamo/`
-(keep the namespace).
-
----
-
-## Step 5 — Demo B: Deploy WITH DynamoDB (persistence + Pod Identity)
-
-Now add real persistence with DynamoDB. Pods get access via **EKS Pod
-Identity** — a scoped IAM role, **no access keys in Kubernetes**.
-
-```bash
-export AWS_REGION=us-east-1
-
-# 1) Create the 6 DynamoDB tables AND the CloudCartDynamoDBPolicy IAM policy (idempotent)
-./scripts/create-dynamodb-tables.sh
-
-# 2) Seed the catalogue: load the 24 products + matching stock into DynamoDB
-#    (tables start empty; without this the storefront shows 0 products)
-./scripts/seed-dynamodb.sh
-
-# 3) Render <ACCOUNT_ID>/<REGION> into the DynamoDB manifests
-./scripts/render-aws-manifests.sh
-
-# 4) Deploy the app (references DynamoDB + a service account)
-kubectl apply -f k8s/namespace.yaml
-kubectl apply -f k8s/aws/
-```
-
-Then wire up Pod Identity:
-```bash
-# 5) Install the EKS Pod Identity agent (once per cluster)
-eksctl create addon --cluster cloudcart --region us-east-1 --name eks-pod-identity-agent
-
-# 6) Create the service account the pods use
-kubectl apply -f k8s/aws/service-account.yaml
-
-# 7) Associate the CloudCartDynamoDBPolicy (created in step 1) to the SA
-ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"
-eksctl create podidentityassociation \
-  --cluster cloudcart --region us-east-1 \
-  --namespace cloudcart \
-  --service-account-name cloudcart-dynamodb \
-  --permission-policy-arns arn:aws:iam::${ACCOUNT_ID}:policy/CloudCartDynamoDBPolicy
-
-# 8) Restart backends so they pick up the identity
-kubectl rollout restart deployment -n cloudcart
-
-# Get the URL
-kubectl get svc frontend -n cloudcart
-# open http://<EXTERNAL-IP>
-```
-
-> **Open the LoadBalancer ports:** the frontend Service provisions an AWS load
-> balancer (`port: 80` → `targetPort: 3000`). Make sure its security group allows
-> inbound **TCP 80** (HTTP) so the app opens in a browser, and **TCP 443** if you
-> later add HTTPS/TLS. If you mapped the app to 8080, allow **TCP 8080** too. For
-> a demo you can allow these from your IP (or `0.0.0.0/0`); lock them down for
-> anything real.
-
-The `create-dynamodb-tables.sh` script creates 6 tables:
-`cloudcart-products`, `cloudcart-inventory`, `cloudcart-carts`,
-`cloudcart-orders`, `cloudcart-payments`, `cloudcart-users`.
-
-> **Why seed?** In the no-DynamoDB demo the services served built-in sample data from memory. With DynamoDB the tables start empty, so `seed-dynamodb.sh` loads the same 24-product catalogue (and matching stock) — that's why the storefront now shows products just like before.
-
-See [eks/pod-identity.md](./eks/pod-identity.md) for the exact IAM policy scoped
-to these tables.
-
-> **Note:** `create-dynamodb-tables.sh` (step 1) creates the `CloudCartDynamoDBPolicy` IAM policy for you, so the association in step 6 works. If you ran an older version of the script and the association failed with "Policy ... does not exist", re-run `./scripts/create-dynamodb-tables.sh`, delete the failed CloudFormation stack, then retry step 6:
-> ```bash
-> aws cloudformation delete-stack \
->   --stack-name eksctl-cloudcart-podidentityrole-cloudcart-cloudcart-dynamodb \
->   --region us-east-1
-> aws cloudformation wait stack-delete-complete \
->   --stack-name eksctl-cloudcart-podidentityrole-cloudcart-cloudcart-dynamodb \
->   --region us-east-1
-> ```
-
-Verify persistence after placing an order:
-```bash
-aws dynamodb scan --table-name cloudcart-orders --region us-east-1
-```
-
-> Key point: the pod assumes an IAM role scoped to only these tables — no AWS
-> access keys live in Kubernetes.
-
-### If the Pod Identity association fails
-
-The association in step 7 provisions a CloudFormation stack for the pod-identity
-IAM role. It commonly fails with `Policy ... does not exist or is not attachable`
-when `CloudCartDynamoDBPolicy` was never created first (step 6 above), or when a
-previous failed attempt left the stack behind.
-
-Read the real reason from the stack events:
-
-```bash
-aws cloudformation describe-stack-events \
-  --stack-name eksctl-cloudcart-podidentityrole-cloudcart-cloudcart-dynamodb \
-  --region us-east-1 \
-  --query "StackEvents[?ResourceStatus=='CREATE_FAILED'].[LogicalResourceId,ResourceStatusReason]" \
-  --output table
-```
-
-Fix: create the policy (step 6), delete the failed stack, then re-run the
-association:
-
-```bash
-aws cloudformation delete-stack \
-  --stack-name eksctl-cloudcart-podidentityrole-cloudcart-cloudcart-dynamodb \
-  --region us-east-1
-aws cloudformation wait stack-delete-complete \
-  --stack-name eksctl-cloudcart-podidentityrole-cloudcart-cloudcart-dynamodb \
-  --region us-east-1
-```
-
-Then re-run the `eksctl create podidentityassociation` command from step 7.
-
-Check the association exists:
-
-```bash
-eksctl get podidentityassociation --cluster cloudcart --region us-east-1
-```
-
----
-
-## Step 6 — Automate everything: Terraform + GitHub Actions (CI/CD)
-
-The repeatable, infra-as-code option. Instead of eksctl + manual steps,
-Terraform provisions everything together: VPC + EKS + ECR + DynamoDB + KMS +
-Pod Identity.
-
-> **Do this once first** — the S3 state bucket in `backend.tf` must exist before
-> `terraform init`, or init fails:
-> ```bash
-> aws s3 mb s3://ajay-eks-demo-terraform-bucket --region us-east-1
-> aws s3api put-bucket-versioning --bucket ajay-eks-demo-terraform-bucket \
->   --versioning-configuration Status=Enabled
-> ```
-
-### Run Terraform locally
-
-```bash
-cd environments/dev/us-east-1
-# edit terraform.tfvars (region, cluster name, node sizes, tags)
-terraform init
-terraform plan
-terraform apply
-terraform output -raw configure_kubectl   # run the printed command to set up kubectl
-```
-
-### Run it in GitHub Actions
-
-The workflow `.github/workflows/dev_cloudcart_eks_workflow.yml` runs on the
-GitHub-hosted `ubuntu-latest` runner. For it to succeed:
-
-1. Add repo secrets (Settings → Secrets and variables → Actions):
-   `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` (an IAM user with admin rights).
-2. Create the S3 state bucket first (command above) — Actions does not create it.
-3. `plan` runs on push; **`apply` runs only on `main`** (or a manual run with
-   `tf_apply=true`).
-
-Note: infra apply takes ~15–20 min. Terraform builds the **infrastructure**,
-while deploying the **app** (ECR push + `kubectl apply` from Step 2/4/5) stays a
-separate step.
-
-After `terraform apply`, deploy the app using the Step 4 (no DynamoDB) or
-Step 5 (DynamoDB) manifests.
-
-### Automated app deployment pipeline
-
-The workflow `.github/workflows/dev_cloudcart_app_deploy.yml` automates the app
-deployment as four sequential stages: **(1)** build & push all images to ECR,
-**(2)** deploy the manifests to EKS, **(3)** seed the DynamoDB catalogue, and
-**(4)** print the app URL and open **TCP 80** on the frontend LoadBalancer's
-security group automatically. It triggers on push to `main` (when `frontend/**`,
-`services/**`, `k8s/aws/**`, `scripts/**`, or the workflow file change) or via
-the manual **Run workflow** button. The infra must already exist — run the
-Terraform workflow first. It uses the same `AWS_ACCESS_KEY_ID` /
-`AWS_SECRET_ACCESS_KEY` secrets, whose IAM identity must have EKS cluster access
-(it does if it ran the Terraform apply).
-
-> The pipeline now opens **TCP 80** on the frontend LoadBalancer's security group
-> automatically (stage 4). This is a Classic ELB on port 80 — note that on EKS the
-> app is served on **port 80**, not 8080 (8080 was only the local Docker Compose port).
-> A future **Ingress / ALB** setup will manage this more cleanly.
-
-### Tear down the Terraform stack (targeted)
-
-When you're done, remove the cost-heavy infra (EKS + NAT gateway) but keep the
-KMS key to avoid its 7–30 day deletion window on recreate. Do NOT delete
-resources by hand or by commenting out module calls — that causes state drift /
-undefined-reference errors. Use a **targeted `terraform destroy`** instead; the
-code stays unchanged so you can recreate later with a plain `terraform apply`.
-
-```bash
-cd environments/dev/us-east-1
-
-# 1) Delete the app FIRST so the frontend LoadBalancer/ELB is released
-#    (an orphaned ELB blocks the VPC from deleting).
-aws eks update-kubeconfig --region us-east-1 --name cloudcart
-kubectl delete namespace cloudcart 2>/dev/null || true
-
-# 2) Targeted destroy — remove EKS + ECR + DynamoDB + Pod Identity + VPC,
-#    but KEEP the KMS key/alias (destroying it starts a 7–30 day window).
-terraform destroy \
-  -target=module.pod_identity \
-  -target=module.dynamodb \
-  -target=module.ecr \
-  -target=module.eks \
-  -target=module.vpc
-# review the plan, then type: yes
-```
-
-> - Why VPC too: the VPC's **NAT gateway** costs money hourly, so destroy it as
->   well (there's nothing to run in it once the cluster is gone).
-> - `module.pod_identity` depends on `module.eks`/`module.dynamodb`, so it must be
->   included in the same destroy.
-> - The outputs for the destroyed modules will just show empty/null afterward —
->   that's expected, no code changes needed.
-> - KMS note: the KMS key + `alias/cloudcart` remain. Because you keep it, a later
->   `terraform apply` reuses it cleanly. (If you'd rather remove everything, drop
->   the `-target` flags and run a plain `terraform destroy`.)
-
-Recreate later:
-
-```bash
-# When you want it back — no code changes, just re-apply:
-terraform apply       # or re-run the Terraform GitHub Actions workflow on main
-```
-
-Note: `terraform apply` recreates EKS/ECR/DynamoDB/VPC/Pod Identity and reuses
-the existing KMS key.
-
-Full detail and troubleshooting: **[DEPLOYMENT-GUIDE.md](./DEPLOYMENT-GUIDE.md)**.
-
----
-
-## Cleanup (avoid charges)
-
-Deleting the cluster stops the biggest charges, but a few resources created by the manual path are NOT removed by `eksctl delete cluster` and must be cleaned up separately.
-
-### Delete the cluster
-
-```bash
-eksctl delete cluster --name cloudcart --region us-east-1        # if you used eksctl (Step 3)
-cd environments/dev/us-east-1 && terraform destroy               # if you used Terraform (Step 6)
-```
-
-`eksctl delete cluster` removes the cluster, node group, its VPC, and the frontend LoadBalancer/ELB. `terraform destroy` removes everything Terraform created.
-
-### Reset between the manual and automated runs (IMPORTANT)
-
-> **If you want to automate everything with Terraform + GitHub Actions (Step 6),
-> follow these cleanup steps first.** The manual path (Steps 2–5) creates ECR
-> repos, DynamoDB tables, an IAM policy, and a KMS alias that do NOT disappear
-> when you delete the cluster. Terraform recreates the same-named resources, so
-> leftovers cause "already exists" errors on `terraform apply`. Remove them for a
-> clean slate.
-
-```bash
-export AWS_REGION=us-east-1
-
-# 1) ECR repositories (created by push-to-ecr.sh)
-for r in frontend product-service inventory-service cart-service order-service payment-service auth-service; do
-  aws ecr delete-repository --repository-name cloudcart-$r --force --region "$AWS_REGION" 2>/dev/null || true
-done
-
-# 2) DynamoDB tables (created by create-dynamodb-tables.sh)
-for t in products inventory carts orders payments users; do
-  aws dynamodb delete-table --table-name cloudcart-$t --region "$AWS_REGION" 2>/dev/null || true
-done
-
-# 3) IAM policy (global) — the one create-dynamodb-tables.sh made
-ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"
-aws iam delete-policy --policy-arn "arn:aws:iam::${ACCOUNT_ID}:policy/CloudCartDynamoDBPolicy" 2>/dev/null || true
-
-# 4) KMS alias (if the manual run created one; the key itself deletes on a waiting period)
-aws kms delete-alias --alias-name alias/cloudcart --region "$AWS_REGION" 2>/dev/null || true
-
-# 5) Any leftover pod-identity CloudFormation stack from a failed association
-aws cloudformation delete-stack \
-  --stack-name eksctl-cloudcart-podidentityrole-cloudcart-cloudcart-dynamodb \
-  --region "$AWS_REGION" 2>/dev/null || true
-```
-
-If `delete-policy` reports the policy is attached, detach it from its role first (or it's fine to leave if you use a different name for the Terraform run). DynamoDB deletes are asynchronous — give them a minute and confirm with `aws dynamodb list-tables`.
-
-### Verify it's clean
-
-```bash
-aws ecr describe-repositories --region us-east-1 \
-  --query "repositories[?starts_with(repositoryName,'cloudcart')].repositoryName" --output table
-aws dynamodb list-tables --region us-east-1 \
-  --query "TableNames[?starts_with(@,'cloudcart')]" --output table
-aws kms list-aliases --region us-east-1 \
-  --query "Aliases[?AliasName=='alias/cloudcart'].AliasName" --output table
-```
-
-All three should return empty before you run the Terraform workflow. Also confirm the eksctl `cloudcart` cluster is fully deleted (`eksctl get cluster --region us-east-1`) so its name is free.
-
-### Stop the bastion (keep it for next time)
-
-Stopping (not terminating) keeps the instance, IAM role, and installed tools; you only pay for the EBS volume.
-
-```bash
-aws ec2 stop-instances --instance-ids <BASTION_INSTANCE_ID> --region us-east-1
-```
+1. Create an IAM admin user.
+2. Create an access key for that user.
+3. Run `aws configure` and set the region to `us-east-1`.
+4. Verify with `aws sts get-caller-identity`.
 
 ---
 
@@ -651,73 +98,82 @@ aws ec2 stop-instances --instance-ids <BASTION_INSTANCE_ID> --region us-east-1
 
 ```
 .
-├── frontend/                     # Web UI + /api proxy to the backends
-├── services/                     # 6 backend microservices (each: Dockerfile + src)
-│   ├── product-service/
-│   ├── inventory-service/
-│   ├── cart-service/
-│   ├── order-service/
-│   ├── payment-service/
-│   └── auth-service/
-├── k8s/
-│   ├── namespace.yaml            # the cloudcart namespace
-│   ├── local/                    # local Kubernetes (kind/minikube), in-memory
-│   ├── aws/                      # EKS: ECR images + DynamoDB + Pod Identity + LoadBalancer
-│   └── aws-nodynamo/             # EKS: same app, in-memory (no DynamoDB / no Pod Identity)
-├── scripts/
-│   ├── push-to-ecr.sh            # build + push all images to ECR
-│   ├── create-dynamodb-tables.sh # create the 6 DynamoDB tables
-│   ├── render-aws-manifests.sh          # fill <ACCOUNT_ID>/<REGION> in k8s/aws
-│   └── render-aws-nodynamo-manifests.sh # fill <ACCOUNT_ID>/<REGION> in k8s/aws-nodynamo
-├── modules/                      # reusable Terraform: vpc, eks, ecr, dynamodb, kms, eks-pod-identity
+├── frontend/                      # Web UI (multi-page storefront) + /api proxy to backends
+├── services/                      # 6 backend microservices, each with its own Dockerfile + src
+│   ├── product-service/           # Product catalogue API
+│   ├── inventory-service/         # Stock levels API
+│   ├── cart-service/              # Shopping cart API
+│   ├── order-service/             # Places orders (calls inventory + payment)
+│   ├── payment-service/           # Mock payment API
+│   └── auth-service/              # Signup/login, issues JWTs
+├── k8s/                           # Kubernetes manifests
+│   ├── namespace.yaml             # The cloudcart namespace
+│   ├── local/                     # Local k8s (kind/minikube), in-memory data
+│   ├── aws/                       # EKS with DynamoDB + Pod Identity + LoadBalancer
+│   └── aws-nodynamo/              # EKS with in-memory data (no DynamoDB / no Pod Identity)
+├── scripts/                       # Helper automation scripts
+│   ├── push-to-ecr.sh             # Build + push all 7 images to ECR
+│   ├── create-dynamodb-tables.sh  # Create 6 DynamoDB tables + the IAM policy
+│   ├── seed-dynamodb.sh           # Load the 24-product catalogue + stock into DynamoDB
+│   ├── render-aws-manifests.sh          # Fill <ACCOUNT_ID>/<REGION> in k8s/aws
+│   └── render-aws-nodynamo-manifests.sh # Fill <ACCOUNT_ID>/<REGION> in k8s/aws-nodynamo
+├── modules/                       # Reusable Terraform modules
+│   ├── vpc/                       # VPC, subnets, NAT, routing
+│   ├── eks/                       # EKS cluster + managed node group
+│   ├── ecr/                       # Container registries
+│   ├── dynamodb/                  # DynamoDB tables
+│   ├── kms/                       # KMS key for table encryption
+│   └── eks-pod-identity/          # Pod Identity IAM role + association
 ├── environments/
-│   └── dev/us-east-1/            # the ONE Terraform env you deploy (edit terraform.tfvars)
-├── eks/                          # eksctl reference + pod-identity notes
-├── diagrams/                     # architecture SVGs
-├── .github/workflows/            # GitHub Actions Terraform pipeline
-├── docker-compose.yml            # run the whole app locally
-├── DEPLOYMENT-GUIDE.md           # detailed runbook + troubleshooting
-└── README.md
+│   └── dev/us-east-1/             # The ONE Terraform env you deploy (edit terraform.tfvars)
+├── eks/                           # eksctl reference + Pod Identity notes
+├── diagrams/                      # Architecture diagrams (SVG)
+├── .github/workflows/             # GitHub Actions: Terraform infra + app deploy pipelines
+├── docker-compose.yml             # Run the whole app locally with Docker
+├── DEPLOYMENT-GUIDE.md            # Detailed runbook + troubleshooting
+└── README.md                      # This file
 ```
 
 ---
 
-## Terraform, in short
+## The app
 
-- **Edit only** `environments/dev/us-east-1/terraform.tfvars`.
-- Node group is the default. Tune it there:
-  ```hcl
-  instance_types = ["t3.medium"]
-  desired_size   = 2
-  min_size       = 2
-  max_size       = 4
-  ```
-- **EKS Auto Mode** (AWS manages nodes) is a one-line switch: `enable_auto_mode = true`.
-- **Grant other users kubectl access** via the `access_entries` map (optional).
-- **DynamoDB tables** are defined in the `dynamodb_tables` map — add tables, GSIs,
-  TTL, etc. without touching module code.
-- Remote state uses the S3 bucket in `backend.tf` — create it once before `terraform init` (see Step 6).
+CloudCart is a small storefront. The `frontend` serves a few HTML pages and proxies `/api/*` calls to the backends.
+
+| Page | Path | What it does |
+|------|------|--------------|
+| Storefront | `/` | Browse the product catalogue and add items to the cart |
+| Login | `/login` | Sign in (auth-service issues a JWT) |
+| Sign up | `/signup` | Create an account |
+| Dashboard | `/dashboard` | View your account and orders after signing in |
+
+Under the hood, seven Node.js/Express microservices do the work. Each backend can run with in-memory data (`USE_DYNAMODB=false`) or persist to DynamoDB.
+
+| Service | Role |
+|---------|------|
+| `frontend` | Web UI + `/api/*` proxy; the only public (LoadBalancer) service |
+| `product-service` | Product catalogue API |
+| `inventory-service` | Stock levels API |
+| `cart-service` | Shopping cart API |
+| `order-service` | Places orders (calls inventory + payment) |
+| `payment-service` | Mock payment API |
+| `auth-service` | Signup/login, issues JWTs |
+
+> **Data mode:** `USE_DYNAMODB=false` keeps everything in memory (great for the first EKS deploy). `USE_DYNAMODB=true` reads/writes the DynamoDB tables.
 
 ---
 
-## Bastion server setup (optional)
+## Bastion server setup (EC2)
 
-An Ubuntu EC2 admin box inside the VPC to run
-`git`/`aws`/`kubectl`/`eksctl`/`terraform`/`docker`. It's useful for a **private
-cluster** (no public API endpoint) or a **clean, consistent workshop
-environment**. It gets its permissions from an attached **IAM instance
-profile**, so there are **no AWS access keys stored on the box**.
+The whole manual demo runs from one small Ubuntu EC2 admin box (the "bastion"). It has every tool pre-installed and gets its permissions from an **attached IAM instance profile** — so there are **no AWS access keys stored on the box**.
 
-> **Note:** for demo/workshop purposes only — in real production, scope these
-> IAM permissions down to least privilege.
+> **Note:** these are demo/workshop settings — in real production, scope the IAM permissions down to least privilege.
 
-**Facts:** Ubuntu latest (default LTS) AMI; **recommended instance type
-`t3.medium`** (2 vCPU / 4 GB — enough headroom to build all seven images with
-Docker); root EBS volume 20 GB (gp3).
+**Facts:** Ubuntu latest AMI, `t3.medium`, 30 GB gp3 root volume.
 
 ### 1. Create the RSA PEM key pair
-Console: **EC2 → Key Pairs → Create key pair → RSA → .pem**. Name it e.g.
-`cloudcart-bastion` and download the `.pem`. Or from the CLI:
+
+Console path: EC2 → Key Pairs → Create key pair → RSA → `.pem` (name `cloudcart-bastion`), or CLI:
 
 ```bash
 aws ec2 create-key-pair --key-name cloudcart-bastion \
@@ -725,152 +181,83 @@ aws ec2 create-key-pair --key-name cloudcart-bastion \
 chmod 400 cloudcart-bastion.pem
 ```
 
-The PEM is a **secret** and is already covered by `.gitignore` (`*.pem`).
+The PEM is a secret, already covered by `.gitignore` (`*.pem`).
 
 ### 2. Create the IAM role + instance profile
-Console: **IAM → Roles → Create role → EC2**. Attach the trust policy, the
-custom inline policy below, and the three managed policies. You attach the role
-to the instance at launch as an **IAM instance profile**.
 
-Trust relationship (assume-role) for EC2:
+Console: IAM → Roles → Create role → EC2. Use this EC2 **trust policy**:
 
 ```json
 {
   "Version": "2012-10-17",
   "Statement": [
-    {
-      "Effect": "Allow",
-      "Principal": { "Service": "ec2.amazonaws.com" },
-      "Action": "sts:AssumeRole"
-    }
+    { "Effect": "Allow", "Principal": { "Service": "ec2.amazonaws.com" }, "Action": "sts:AssumeRole" }
   ]
 }
 ```
 
-Custom inline policy:
+Then attach this custom **inline policy**:
 
 ```json
 {
   "Version": "2012-10-17",
   "Statement": [
-    {
-      "Sid": "EKSAccess",
-      "Effect": "Allow",
-      "Action": "eks:*",
-      "Resource": "*"
-    },
-    {
-      "Sid": "EC2Access",
-      "Effect": "Allow",
-      "Action": "ec2:*",
-      "Resource": "*"
-    },
-    {
-      "Sid": "CloudFormationAccess",
-      "Effect": "Allow",
-      "Action": "cloudformation:*",
-      "Resource": "*"
-    },
+    { "Sid": "EKSAccess", "Effect": "Allow", "Action": "eks:*", "Resource": "*" },
+    { "Sid": "EC2Access", "Effect": "Allow", "Action": "ec2:*", "Resource": "*" },
+    { "Sid": "CloudFormationAccess", "Effect": "Allow", "Action": "cloudformation:*", "Resource": "*" },
     {
       "Sid": "IAMAccess",
       "Effect": "Allow",
       "Action": [
-        "iam:CreateRole",
-        "iam:DeleteRole",
-        "iam:GetRole",
-        "iam:PassRole",
-        "iam:AttachRolePolicy",
-        "iam:DetachRolePolicy",
-        "iam:CreatePolicy",
-        "iam:DeletePolicy",
-        "iam:CreatePolicyVersion",
-        "iam:DeletePolicyVersion",
-        "iam:GetPolicy",
-        "iam:GetPolicyVersion",
-        "iam:ListPolicyVersions",
-        "iam:ListRolePolicies",
-        "iam:ListAttachedRolePolicies",
-        "iam:CreateServiceLinkedRole",
-        "iam:TagRole",
-        "iam:TagPolicy",
-        "iam:GetOpenIDConnectProvider",
-        "iam:CreateOpenIDConnectProvider",
-        "iam:DeleteOpenIDConnectProvider",
-        "iam:TagOpenIDConnectProvider"
+        "iam:CreateRole", "iam:DeleteRole", "iam:GetRole", "iam:PassRole",
+        "iam:AttachRolePolicy", "iam:DetachRolePolicy", "iam:CreatePolicy", "iam:DeletePolicy",
+        "iam:CreatePolicyVersion", "iam:DeletePolicyVersion", "iam:GetPolicy", "iam:GetPolicyVersion",
+        "iam:ListPolicyVersions", "iam:ListRolePolicies", "iam:ListAttachedRolePolicies",
+        "iam:CreateServiceLinkedRole", "iam:TagRole", "iam:TagPolicy",
+        "iam:GetOpenIDConnectProvider", "iam:CreateOpenIDConnectProvider",
+        "iam:DeleteOpenIDConnectProvider", "iam:TagOpenIDConnectProvider"
       ],
       "Resource": "*"
     },
+    { "Sid": "AutoScalingAccess", "Effect": "Allow", "Action": "autoscaling:*", "Resource": "*" },
     {
-      "Sid": "AutoScalingAccess",
-      "Effect": "Allow",
-      "Action": "autoscaling:*",
+      "Sid": "LogsAccess", "Effect": "Allow",
+      "Action": ["logs:CreateLogGroup","logs:CreateLogStream","logs:DescribeLogGroups","logs:DescribeLogStreams","logs:PutLogEvents","logs:PutRetentionPolicy"],
       "Resource": "*"
     },
     {
-      "Sid": "LogsAccess",
-      "Effect": "Allow",
-      "Action": [
-        "logs:CreateLogGroup",
-        "logs:CreateLogStream",
-        "logs:DescribeLogGroups",
-        "logs:DescribeLogStreams",
-        "logs:PutLogEvents",
-        "logs:PutRetentionPolicy"
-      ],
+      "Sid": "KMSAccess", "Effect": "Allow",
+      "Action": ["kms:DescribeKey","kms:CreateGrant","kms:ListGrants","kms:RevokeGrant"],
       "Resource": "*"
     },
     {
-      "Sid": "KMSAccess",
-      "Effect": "Allow",
-      "Action": [
-        "kms:DescribeKey",
-        "kms:CreateGrant",
-        "kms:ListGrants",
-        "kms:RevokeGrant"
-      ],
-      "Resource": "*"
-    },
-    {
-      "Sid": "SSMAccess",
-      "Effect": "Allow",
-      "Action": [
-        "ssm:DescribeInstanceInformation",
-        "ssm:GetParameter",
-        "ssm:GetParameters",
-        "ssm:GetParametersByPath"
-      ],
+      "Sid": "SSMAccess", "Effect": "Allow",
+      "Action": ["ssm:DescribeInstanceInformation","ssm:GetParameter","ssm:GetParameters","ssm:GetParametersByPath"],
       "Resource": "*"
     }
   ]
 }
 ```
 
-> The `iam:CreatePolicy`/`iam:GetPolicy` permissions let the bastion create the
-> `CloudCartDynamoDBPolicy` (done automatically by `scripts/create-dynamodb-tables.sh`).
-> Without them, the DynamoDB Pod Identity association in Step 5 fails with
-> "Policy ... does not exist". For a real production setup, scope these down to least privilege.
+The `iam:CreatePolicy` permission lets the bastion create `CloudCartDynamoDBPolicy` (done by `create-dynamodb-tables.sh`).
 
-Also attach these AWS managed policies:
+Also attach these AWS **managed policies**:
 
 - `AmazonSSMFullAccess`
 - `AmazonDynamoDBFullAccess`
 - `AmazonS3FullAccess`
 - `AmazonEC2ContainerRegistryFullAccess`
 
-> The ECR Full Access policy lets the bastion run `push-to-ecr.sh` (create repos + push). For a real production setup, scope all of these down to least privilege.
+ECR Full Access lets the bastion run `push-to-ecr.sh` (it includes `ecr:CreateRepository`).
 
 ### 3. Launch the Ubuntu EC2 instance
-Console: **EC2 → Launch instance**. Choose the latest **Ubuntu** AMI,
-**t3.medium**, a **20 GB gp3** root volume, select the `cloudcart-bastion` key
-pair, and attach the IAM role/instance profile. Use a security group allowing
-**SSH (TCP 22) from your IP**. (SSM Session Manager is a keyless alternative
-since `AmazonSSMFullAccess` is attached — you can skip open port 22 entirely.)
-Paste the user-data script below into **Advanced details → User data**:
+
+Console: EC2 → Launch instance. Choose the **latest Ubuntu AMI**, **t3.medium**, **30 GB gp3** root volume, select the `cloudcart-bastion` key pair, attach the IAM role/instance profile, and a security group allowing SSH (**TCP 22**) from your IP. SSM Session Manager is a keyless alternative. Paste the user-data below into Advanced details → User data:
 
 ```bash
 #!/bin/bash
 set -e
-exec > /var/log/user-data.log 2>&1   # capture everything for troubleshooting
+exec > /var/log/user-data.log 2>&1
 
 apt-get update -y
 apt-get install -y unzip curl git gnupg lsb-release
@@ -901,7 +288,7 @@ echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://
 apt-get update -y
 apt-get install -y terraform
 
-# Verification block — written to a file students (and you) can check
+# Verification file
 {
   echo "git: $(git --version)"
   echo "aws: $(aws --version)"
@@ -915,33 +302,463 @@ touch /home/ubuntu/BOOTSTRAP_DONE
 ```
 
 ### 4. Wait for bootstrap to finish
-Check that `/home/ubuntu/BOOTSTRAP_DONE` exists and `cat /home/ubuntu/versions.txt`.
-If troubleshooting, tail `/var/log/user-data.log`.
 
-### 5. Use it
-From the bastion:
+Bootstrapping takes a few minutes. Once done, `/home/ubuntu/BOOTSTRAP_DONE` exists:
 
 ```bash
-aws sts get-caller-identity                                    # should show the instance role
-aws eks update-kubeconfig --name cloudcart --region us-east-1
-kubectl get nodes
+ls /home/ubuntu/BOOTSTRAP_DONE       # exists when bootstrap is complete
+cat /home/ubuntu/versions.txt        # confirms tool versions
+tail -f /var/log/user-data.log       # follow the bootstrap log if troubleshooting
 ```
+
+### 5. Verify tools + AWS identity
+
+Confirm the bastion's IAM role is in effect:
+
+```bash
+aws sts get-caller-identity          # should show the bastion's assumed role
+```
+
+From here on, run **all deployment steps on this bastion**.
 
 ### SSH into the bastion from your laptop (with the PEM key)
 
-**macOS/Linux:**
+**macOS / Linux:**
+
 ```bash
 chmod 400 cloudcart-bastion.pem
 ssh -i cloudcart-bastion.pem ubuntu@<EC2_PUBLIC_IP_OR_DNS>
 ```
-(the default user for the Ubuntu AMI is `ubuntu`).
 
-**Windows:** use `ssh` from PowerShell/Windows Terminal the same way, or PuTTY
-(convert `.pem` to `.ppk` with PuTTYgen, user `ubuntu`).
+**Windows / PuTTY:** convert `cloudcart-bastion.pem` to `.ppk` with PuTTYgen, then connect to `ubuntu@<EC2_PUBLIC_IP>` using that key.
 
-Get the public IP/DNS from the EC2 console or `aws ec2 describe-instances`.
-Ensure the security group allows inbound **TCP 22 from your IP**.
+Default user is `ubuntu`. Get the public IP/DNS from the EC2 console, and make sure the security group allows inbound **TCP 22** from your IP. Keyless alternative: `aws ssm start-session --target <INSTANCE_ID>`.
 
-**Keyless alternative:** `aws ssm start-session --target <INSTANCE_ID>` — works
-because `AmazonSSMFullAccess` is attached and the SSM agent ships with the
-Ubuntu AMI, so no open port 22 is needed.
+> Everything below runs from this bastion.
+
+---
+
+## Step 1 — Clone the repo
+
+Clone onto the bastion (or your laptop). If you're on the bastion and returning later, run `git pull` first so you have the latest scripts.
+
+```bash
+git clone https://github.com/Ajay-321/cloudcart-eks-microservices-workshop.git
+cd cloudcart-eks-microservices-workshop
+```
+
+---
+
+## Step 2 — Run locally with Docker
+
+Before Kubernetes, see how a container works. First run ONE service as a single container to understand the basics, then automate the whole app with Docker Compose (instead of starting containers one by one).
+
+### Manual — one container
+
+```bash
+# Build an image from a service's Dockerfile
+docker build -t product-service:1.0 ./services/product-service
+
+# Run it as a container (host:container port)
+docker run -d -p 8080:3000 --name product-service product-service:1.0
+
+# Test it
+curl localhost:8080/products
+```
+
+Each backend listens on port **3000** inside the container. Stop it with `docker rm -f product-service` before the next step.
+
+### Automate — the whole app with Docker Compose
+
+```bash
+docker compose up --build      # build + start all 7 services
+docker compose ps              # see them running
+# open http://<EC2_PUBLIC_IP>:8080   (Compose publishes the frontend on 8080)
+docker compose down            # stop everything
+```
+
+> **Open the EC2 security group:** to reach the app in your browser while it
+> runs on the bastion, add inbound rules to the instance's security group for
+> **TCP 8080** (Docker Compose frontend) and **TCP 80** (if you map a container
+> to port 80). Only the frontend needs a published port — backends talk over
+> Docker's internal network. For a demo you can allow these from your IP or
+> `0.0.0.0/0`.
+
+Why this matters: Compose gives each service a DNS name (e.g. `http://inventory-service:3000`) — Kubernetes works the same way, which is the bridge to the next steps.
+
+---
+
+## Step 3 — Push images to Amazon ECR
+
+ECR is your private Docker registry; EKS pulls images from here. Do it by hand once to see the steps, then use the script.
+
+### Option 1 — Manual (understand the steps)
+
+```bash
+export AWS_REGION=us-east-1
+export AWS_ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"
+export ECR="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+
+# 1) Log Docker in to ECR (token valid ~12h)
+aws ecr get-login-password --region "$AWS_REGION" | docker login --username AWS --password-stdin "$ECR"
+
+# 2) Create a repo (one per image; ignore error if it exists)
+aws ecr create-repository --repository-name cloudcart-product-service --region "$AWS_REGION" || true
+
+# 3) Build, 4) tag, 5) push
+docker build -t cloudcart-product-service:1.0 ./services/product-service
+docker tag  cloudcart-product-service:1.0 "$ECR/cloudcart-product-service:1.0"
+docker push "$ECR/cloudcart-product-service:1.0"
+```
+
+Repeat for the other six images. The `frontend` build path is `./frontend`; the backends are `./services/<name>`. Tedious by hand — hence the script.
+
+### Option 2 — Automate with the script
+
+```bash
+export AWS_REGION=us-east-1
+
+# Make the scripts executable (first time on Linux)
+chmod +x scripts/*.sh
+
+./scripts/push-to-ecr.sh       # logs in, creates repos if missing, builds + pushes all seven
+```
+
+> **Permissions:** the bastion role needs `AmazonEC2ContainerRegistryFullAccess` (includes `ecr:CreateRepository`). ECR PowerUser alone is NOT enough.
+
+---
+
+## Step 4 — Create the EKS cluster
+
+Create a managed Kubernetes cluster with eksctl from the bastion (eksctl is already installed). Use **version 1.36** and a node group of min 1 / desired 2 / max 4.
+
+```bash
+eksctl create cluster \
+  --name cloudcart --region us-east-1 --version 1.36 \
+  --managed --node-type t3.medium \
+  --nodes 2 --nodes-min 1 --nodes-max 4 --with-oidc
+```
+
+This takes ~15–20 min and configures kubectl for you. Use the AWS Console only to view the cluster.
+
+### Point kubectl at the cluster
+
+```bash
+# This workshop's values
+aws eks update-kubeconfig --region us-east-1 --name cloudcart
+
+# Generic form
+aws eks update-kubeconfig --region <REGION> --name <CLUSTER_NAME>
+```
+
+Confirm nodes are Ready: `kubectl get nodes`.
+
+### If pods stay Pending (not enough nodes)
+
+Check what's wrong, then scale the node group:
+
+```bash
+kubectl get pods -n cloudcart
+kubectl describe pod <POD> -n cloudcart
+
+# Scale with eksctl (this workshop's node group)
+eksctl scale nodegroup --cluster cloudcart --region us-east-1 \
+  --name <NODEGROUP_NAME> --nodes 3 --nodes-min 1 --nodes-max 4
+
+# Generic form
+eksctl scale nodegroup --cluster <CLUSTER_NAME> --region <REGION> \
+  --name <NODEGROUP_NAME> --nodes <N> --nodes-min <MIN> --nodes-max <MAX>
+
+# Or with the AWS CLI in one line
+aws eks update-nodegroup-config --cluster-name cloudcart --region us-east-1 \
+  --nodegroup-name <NODEGROUP_NAME> \
+  --scaling-config minSize=1,maxSize=4,desiredSize=2
+```
+
+---
+
+## Step 5 — Deploy on EKS WITHOUT DynamoDB (in-memory)
+
+Fastest way to see the whole app on a real cluster. Backends use in-memory data (`USE_DYNAMODB=false`) — no tables, no IAM, no Pod Identity. Only the frontend gets a public ELB.
+
+Run each step one at a time:
+
+```bash
+export AWS_REGION=us-east-1
+
+# 1) Make scripts executable (first time on Linux)
+chmod +x scripts/*.sh
+
+# 2) Fill <ACCOUNT_ID>/<REGION> into the no-DynamoDB image references
+./scripts/render-aws-nodynamo-manifests.sh
+
+# 3) Create the namespace
+kubectl apply -f k8s/namespace.yaml
+
+# 4) Deploy all services (in-memory mode)
+kubectl apply -f k8s/aws-nodynamo/
+
+# 5) Watch pods come up until all are Running
+kubectl get pods -n cloudcart -w
+```
+
+Then get the URL:
+
+```bash
+kubectl get svc frontend -n cloudcart
+# wait for EXTERNAL-IP to become an ELB hostname, then open http://<EXTERNAL-IP>
+```
+
+> **Open the LoadBalancer's security group** for inbound **TCP 80** (and 443 if you add TLS). The frontend Service is `type: LoadBalancer` (port 80 → targetPort 3000), and the classic ELB auto-creates its own security group. For a demo, allow from your IP or `0.0.0.0/0`.
+
+### Validate the deployment
+
+```bash
+kubectl get pods -n cloudcart        # all Running (1/1)
+kubectl get svc -n cloudcart         # frontend = LoadBalancer w/ EXTERNAL-IP; others ClusterIP
+kubectl get deploy -n cloudcart      # all replicas available
+kubectl rollout status deployment/frontend -n cloudcart
+kubectl logs -n cloudcart deployment/order-service --tail=50   # check logs if needed
+```
+
+**Reset before the DynamoDB demo:** `kubectl delete -f k8s/aws-nodynamo/` (keep the namespace).
+
+---
+
+## Step 6 — Deploy on EKS WITH DynamoDB (persistence + Pod Identity)
+
+Now add real persistence. Pods reach DynamoDB via **EKS Pod Identity** — a scoped IAM role, no static keys in Kubernetes. **IMPORTANT (beginners):** run these ONE AT A TIME and wait for each to finish. Running them all at once can race — table creation, seeding, deploy, and Pod Identity need to complete in order.
+
+```bash
+export AWS_REGION=us-east-1
+
+# 1) Make scripts executable (first time on Linux)
+chmod +x scripts/*.sh
+
+# 2) Create the 6 DynamoDB tables + the CloudCartDynamoDBPolicy IAM policy (idempotent)
+./scripts/create-dynamodb-tables.sh
+
+# 3) Seed the catalogue: 24 products + matching stock (tables start empty)
+./scripts/seed-dynamodb.sh
+
+# 4) Fill <ACCOUNT_ID>/<REGION> into the DynamoDB image references
+./scripts/render-aws-manifests.sh
+
+# 5) Create the namespace (skip if it already exists)
+kubectl apply -f k8s/namespace.yaml
+
+# 6) Create the service account the pods use for DynamoDB access
+kubectl apply -f k8s/aws/service-account.yaml
+
+# 7) Install the EKS Pod Identity agent (once per cluster)
+eksctl create addon --cluster cloudcart --region us-east-1 --name eks-pod-identity-agent
+
+# 8) Associate the CloudCartDynamoDBPolicy with the service account
+ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"
+eksctl create podidentityassociation \
+  --cluster cloudcart --region us-east-1 \
+  --namespace cloudcart \
+  --service-account-name cloudcart-dynamodb \
+  --permission-policy-arns arn:aws:iam::${ACCOUNT_ID}:policy/CloudCartDynamoDBPolicy
+
+# 9) Deploy the app (references DynamoDB + the service account)
+kubectl apply -f k8s/aws/
+
+# 10) Restart backends so they pick up the Pod Identity credentials
+kubectl rollout restart deployment -n cloudcart
+
+# 11) Get the URL
+kubectl get svc frontend -n cloudcart
+# open http://<EXTERNAL-IP>
+```
+
+The 6 tables are: `cloudcart-products`, `cloudcart-inventory`, `cloudcart-carts`, `cloudcart-orders`, `cloudcart-payments`, `cloudcart-users`. Note that `create-dynamodb-tables.sh` also creates the `CloudCartDynamoDBPolicy` IAM policy.
+
+**Why seed?** The tables are created empty. `seed-dynamodb.sh` loads the 24-product catalogue and matching stock so the storefront has something to show.
+
+### Validate the deployment
+
+```bash
+kubectl get pods -n cloudcart        # all Running (1/1)
+kubectl get svc -n cloudcart
+kubectl get deploy -n cloudcart
+kubectl rollout status deployment/frontend -n cloudcart
+kubectl logs -n cloudcart deployment/auth-service --tail=50
+# After placing an order in the UI, confirm it persisted:
+aws dynamodb scan --table-name cloudcart-orders --region us-east-1 --select COUNT
+```
+
+If a backend pod CrashLoops with a KMS/AccessDenied error, the Pod Identity association or its KMS permission isn't in place (the Terraform path grants KMS automatically).
+
+### If the Pod Identity association fails
+
+Read the stack events, delete the failed stack, then re-run the association:
+
+```bash
+aws cloudformation describe-stack-events \
+  --stack-name eksctl-cloudcart-podidentityrole-cloudcart-cloudcart-dynamodb \
+  --region us-east-1 \
+  --query "StackEvents[?ResourceStatus=='CREATE_FAILED'].[LogicalResourceId,ResourceStatusReason]" --output table
+
+aws cloudformation delete-stack --stack-name eksctl-cloudcart-podidentityrole-cloudcart-cloudcart-dynamodb --region us-east-1
+aws cloudformation wait stack-delete-complete --stack-name eksctl-cloudcart-podidentityrole-cloudcart-cloudcart-dynamodb --region us-east-1
+
+# Re-run step 8, then confirm:
+eksctl get podidentityassociation --cluster cloudcart --region us-east-1
+```
+
+---
+
+## Automate everything: Terraform + GitHub Actions (CI/CD)
+
+The manual steps above are great for learning and a first-time run. In real life you automate all of it — repeatable, reviewable, and hands-off.
+
+**What is Terraform?** Infrastructure as code — it provisions the whole stack (VPC, EKS, ECR, DynamoDB, KMS, Pod Identity) from declarative files. **What is GitHub Actions?** CI/CD — it runs Terraform and the app deploy automatically on push.
+
+### One-time: S3 state bucket
+
+> The S3 remote-state bucket referenced in `backend.tf` must exist before `terraform init`:
+> ```bash
+> aws s3 mb s3://ajay-eks-demo-terraform-bucket --region us-east-1
+> aws s3api put-bucket-versioning --bucket ajay-eks-demo-terraform-bucket --versioning-configuration Status=Enabled
+> ```
+
+### Run Terraform locally
+
+```bash
+cd environments/dev/us-east-1
+# edit terraform.tfvars (region, cluster name, node sizes)
+terraform init
+terraform plan
+terraform apply
+terraform output -raw configure_kubectl   # run the printed command to set up kubectl
+```
+
+### Run infra in GitHub Actions
+
+Workflow `.github/workflows/dev_cloudcart_eks_workflow.yml` (Terraform infra):
+
+1. Add repo secrets `AWS_ACCESS_KEY_ID` + `AWS_SECRET_ACCESS_KEY`.
+2. Create the S3 state bucket first.
+3. It runs **plan on push** and **apply on main** (or manual dispatch `tf_apply=true`).
+
+Infra apply takes ~15–20 min.
+
+### Automated app deployment pipeline
+
+Workflow `.github/workflows/dev_cloudcart_app_deploy.yml` — four stages:
+
+1. **Build & push** images to ECR.
+2. **Deploy** manifests to EKS.
+3. **Seed** DynamoDB.
+4. **Print URL** + open **TCP 80** on the ELB security group automatically.
+
+Triggers on push to main or manual **Run workflow**. Infra must exist first.
+
+### Tear down (targeted)
+
+Delete the app/namespace first to release the ELB (an orphaned ELB blocks VPC deletion), then run a targeted `terraform destroy`:
+
+```bash
+cd environments/dev/us-east-1
+
+# Delete the app FIRST so the ELB is released
+aws eks update-kubeconfig --region us-east-1 --name cloudcart
+kubectl delete namespace cloudcart 2>/dev/null || true
+
+# Targeted destroy — Pod Identity + DynamoDB + ECR + EKS + VPC (keep KMS)
+terraform destroy \
+  -target=module.pod_identity \
+  -target=module.dynamodb \
+  -target=module.ecr \
+  -target=module.eks \
+  -target=module.vpc
+```
+
+> **Demo tip:** for a same-day re-demo you can destroy only the conflicting resources (`module.pod_identity`, `module.dynamodb`, `module.ecr`, `module.eks`) and keep VPC/NAT + KMS for a short window (small cost). Recreate later with `terraform apply` — no code changes needed.
+
+Full detail and troubleshooting: [DEPLOYMENT-GUIDE.md](./DEPLOYMENT-GUIDE.md).
+
+---
+
+## Terraform, in short
+
+The `modules/` directory holds reusable building blocks (vpc, eks, ecr, dynamodb, kms, eks-pod-identity), and `environments/dev/us-east-1/` is the single environment you actually deploy — edit its `terraform.tfvars` to set the region, cluster name, and node sizes.
+
+```hcl
+# environments/dev/us-east-1/terraform.tfvars
+region             = "us-east-1"
+cluster_name       = "cloudcart"
+kubernetes_version = "1.36"
+
+# Managed node group
+node_instance_type = "t3.medium"
+desired_size       = 2
+min_size           = 1
+max_size           = 4
+```
+
+Remote state lives in the S3 bucket `ajay-eks-demo-terraform-bucket`. Run `terraform init && terraform plan && terraform apply` from the environment directory, then use `terraform output -raw configure_kubectl` to point kubectl at the new cluster.
+
+---
+
+## Cleanup (avoid charges)
+
+Delete everything when you're done so you don't keep paying for the cluster, NAT gateway, and load balancer.
+
+### Delete the cluster
+
+```bash
+# If you created it manually with eksctl
+eksctl delete cluster --name cloudcart --region us-east-1
+
+# If you created it with Terraform
+cd environments/dev/us-east-1
+terraform destroy   # tears down VPC + EKS + ECR + DynamoDB + Pod Identity
+```
+
+### Reset between the manual and automated runs (IMPORTANT)
+
+> The manual scripts/manifests and Terraform use the **same names** (cluster, ECR repos, DynamoDB tables, IAM policy). If you did the manual flow first, clean those up before running Terraform so they don't conflict.
+
+```bash
+export AWS_REGION=us-east-1
+
+# ECR repos
+for r in frontend product-service inventory-service cart-service order-service payment-service auth-service; do
+  aws ecr delete-repository --repository-name cloudcart-$r --force --region "$AWS_REGION" || true
+done
+
+# DynamoDB tables
+for t in products inventory carts orders payments users; do
+  aws dynamodb delete-table --table-name cloudcart-$t --region "$AWS_REGION" || true
+done
+
+# IAM policy
+ACCOUNT_ID="$(aws sts get-caller-identity --query Account --output text)"
+aws iam delete-policy --policy-arn arn:aws:iam::${ACCOUNT_ID}:policy/CloudCartDynamoDBPolicy || true
+
+# KMS alias
+aws kms delete-alias --alias-name alias/cloudcart --region "$AWS_REGION" || true
+
+# Pod Identity CloudFormation stack
+aws cloudformation delete-stack --stack-name eksctl-cloudcart-podidentityrole-cloudcart-cloudcart-dynamodb --region "$AWS_REGION" || true
+```
+
+These deletes are asynchronous — give AWS a minute or two to finish before recreating.
+
+### Verify it's clean
+
+```bash
+aws ecr describe-repositories --region us-east-1 --query 'repositories[].repositoryName'
+aws dynamodb list-tables --region us-east-1
+aws kms list-aliases --region us-east-1 --query "Aliases[?AliasName=='alias/cloudcart']"
+```
+
+Also confirm the cluster is deleted: `eksctl get cluster --region us-east-1`.
+
+### Stop the bastion (keep it for next time)
+
+```bash
+aws ec2 stop-instances --instance-ids <INSTANCE_ID>
+```

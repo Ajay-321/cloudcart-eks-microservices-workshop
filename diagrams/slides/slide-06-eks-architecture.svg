@@ -1,0 +1,80 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720">
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L8,3 L0,6 Z" fill="#5b6472"/>
+    </marker>
+  </defs>
+
+  <!-- Slide background -->
+  <rect x="0" y="0" width="1280" height="720" fill="#ffffff"/>
+
+  <!-- Title bar -->
+  <rect x="0" y="0" width="1280" height="90" fill="#0f1b3d"/>
+  <text x="48" y="56" font-family="Arial" font-size="30" font-weight="bold" fill="#ffffff">Amazon EKS — managed Kubernetes on AWS</text>
+  <text x="1232" y="54" font-family="Arial" font-size="16" fill="#9fb3d1" text-anchor="end">CloudCart Workshop</text>
+
+  <!-- AWS Cloud container -->
+  <rect x="48" y="115" width="850" height="450" rx="18" fill="#fff4e0" stroke="#e08e0b" stroke-width="3"/>
+  <text x="70" y="150" font-family="Arial" font-size="22" font-weight="bold" fill="#e08e0b">AWS Cloud (us-east-1)</text>
+
+  <!-- EKS Control Plane box -->
+  <rect x="70" y="170" width="380" height="200" rx="14" fill="#eef8ef" stroke="#4b8c5a" stroke-width="2.5"/>
+  <text x="90" y="205" font-family="Arial" font-size="19" font-weight="bold" fill="#0f1b3d">EKS Control Plane</text>
+  <!-- AWS-MANAGED badge -->
+  <rect x="300" y="185" width="130" height="28" rx="8" fill="#4b8c5a"/>
+  <text x="365" y="204" font-family="Arial" font-size="13" font-weight="bold" fill="#ffffff" text-anchor="middle">AWS-MANAGED</text>
+  <text x="90" y="250" font-family="Arial" font-size="15" fill="#1a1a2e">API Server • Scheduler • Controllers • etcd</text>
+  <text x="90" y="290" font-family="Arial" font-size="15" fill="#1a1a2e">HA across Availability Zones</text>
+  <text x="90" y="330" font-family="Arial" font-size="15" fill="#1a1a2e">AWS handles upgrades &amp; patching</text>
+
+  <!-- Managed Node Group box -->
+  <rect x="490" y="170" width="380" height="200" rx="14" fill="#eef8ef" stroke="#4b8c5a" stroke-width="2.5"/>
+  <text x="510" y="205" font-family="Arial" font-size="17" font-weight="bold" fill="#0f1b3d">Managed Node Group</text>
+  <text x="510" y="228" font-family="Arial" font-size="14" fill="#5b6472">(your EC2 workers)</text>
+  <text x="510" y="270" font-family="Arial" font-size="15" fill="#1a1a2e">t3.medium</text>
+  <text x="510" y="305" font-family="Arial" font-size="15" fill="#1a1a2e">min 1 • desired 2 • max 4</text>
+  <text x="510" y="340" font-family="Arial" font-size="15" fill="#1a1a2e">Kubernetes v1.36</text>
+
+  <!-- Arrow between control plane and node group -->
+  <line x1="450" y1="270" x2="486" y2="270" stroke="#5b6472" stroke-width="3" marker-end="url(#arrow)"/>
+  <text x="468" y="258" font-family="Arial" font-size="13" fill="#5b6472" text-anchor="middle">manages</text>
+
+  <!-- AWS integration chips row -->
+  <text x="70" y="415" font-family="Arial" font-size="15" font-weight="bold" fill="#e08e0b">AWS integrations</text>
+
+  <rect x="70" y="430" width="150" height="50" rx="10" fill="#ffffff" stroke="#c7ced9" stroke-width="2"/>
+  <text x="145" y="461" font-family="Arial" font-size="13" font-weight="bold" fill="#1a1a2e" text-anchor="middle">IAM (Pod Identity)</text>
+
+  <rect x="232" y="430" width="160" height="50" rx="10" fill="#ffffff" stroke="#c7ced9" stroke-width="2"/>
+  <text x="312" y="461" font-family="Arial" font-size="12" font-weight="bold" fill="#1a1a2e" text-anchor="middle">Elastic Load Balancing</text>
+
+  <rect x="404" y="430" width="140" height="50" rx="10" fill="#ffffff" stroke="#c7ced9" stroke-width="2"/>
+  <text x="474" y="461" font-family="Arial" font-size="13" font-weight="bold" fill="#1a1a2e" text-anchor="middle">Amazon ECR</text>
+
+  <rect x="556" y="430" width="140" height="50" rx="10" fill="#ffffff" stroke="#c7ced9" stroke-width="2"/>
+  <text x="626" y="461" font-family="Arial" font-size="13" font-weight="bold" fill="#1a1a2e" text-anchor="middle">Amazon VPC</text>
+
+  <rect x="708" y="430" width="140" height="50" rx="10" fill="#ffffff" stroke="#c7ced9" stroke-width="2"/>
+  <text x="778" y="461" font-family="Arial" font-size="13" font-weight="bold" fill="#1a1a2e" text-anchor="middle">AWS KMS</text>
+
+  <!-- Right responsibility mini table -->
+  <rect x="920" y="170" width="312" height="200" rx="16" fill="#ffffff" stroke="#c7ced9" stroke-width="2.5"/>
+  <text x="1076" y="205" font-family="Arial" font-size="18" font-weight="bold" fill="#0f1b3d" text-anchor="middle">Responsibility</text>
+  <line x1="945" y1="222" x2="1207" y2="222" stroke="#d9dee8" stroke-width="1.5"/>
+
+  <rect x="945" y="240" width="262" height="55" rx="10" fill="#eef8ef" stroke="#4b8c5a" stroke-width="2"/>
+  <text x="958" y="263" font-family="Arial" font-size="13" font-weight="bold" fill="#4b8c5a">AWS manages:</text>
+  <text x="958" y="284" font-family="Arial" font-size="13" fill="#1a1a2e">control plane, etcd, upgrades</text>
+
+  <rect x="945" y="305" width="262" height="55" rx="10" fill="#fff4e0" stroke="#e08e0b" stroke-width="2"/>
+  <text x="958" y="328" font-family="Arial" font-size="13" font-weight="bold" fill="#e08e0b">You manage:</text>
+  <text x="958" y="349" font-family="Arial" font-size="13" fill="#1a1a2e">nodes, workloads</text>
+
+  <!-- Caption -->
+  <text x="640" y="620" font-family="Arial" font-size="17" font-style="italic" fill="#5b6472" text-anchor="middle">Same Kubernetes API — without the burden of running the control plane yourself.</text>
+
+  <!-- Footer -->
+  <line x1="48" y1="684" x2="1232" y2="684" stroke="#d9dee8" stroke-width="1"/>
+  <text x="48" y="706" font-family="Arial" font-size="13" fill="#6b7280">CloudCart — Kubernetes &amp; Amazon EKS Workshop</text>
+  <text x="1232" y="706" font-family="Arial" font-size="13" fill="#6b7280" text-anchor="end">6 / 8</text>
+</svg>
