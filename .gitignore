@@ -128,7 +128,8 @@ desktop.ini
 *~
 .*.sw?
 
-# NOTE: .kiro/ holds specs that SHOULD be committed — do NOT ignore it.
+# Kiro specs / local IDE state
+.kiro/
 
 # ------------------------------------------------------------------------------
 # Logs
