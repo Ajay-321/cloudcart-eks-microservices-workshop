@@ -43,9 +43,9 @@ auto_mode_node_pools = ["general-purpose", "system"]
 # ---- Managed node group sizing (used when enable_auto_mode = false) ---------
 instance_types = ["t3.medium"] # e.g. ["t3.large"] or ["t3.medium","t3a.medium"]
 capacity_type  = "ON_DEMAND"   # or "SPOT" to save money
-desired_size   = 2
-min_size       = 2
-max_size       = 4
+desired_size   = 1
+min_size       = 1
+max_size       = 3
 disk_size      = 30
 
 # ---- Extra cluster access (optional) ----------------------------------------
